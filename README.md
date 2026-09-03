@@ -40,14 +40,16 @@ A promoted route is a list of upstream calls with bindings, run by one small int
 
 ```json
 {
-  "name": "directory_tree_then_read_text_file.a12f9c",
+  "name": "read_text_file.395242",
   "steps": [
-    { "call": "directory_tree",  "args": { "path": { "kind": "const", "value": "/repo" } } },
-    { "call": "read_text_file",  "args": { "path": { "kind": "const", "value": "/repo/src/db/pool.js" } } }
+    { "call": "read_text_file", "args": { "path": { "kind": "const", "value": "/repo/src/db/pool.js" } } }
   ],
-  "returns": 1
+  "returns": 0,
+  "sourceSteps": [2]
 }
 ```
+
+The caller made three calls to get there: a `directory_tree` to see what existed, a `get_file_info`, then the read. The route makes one. Nothing in the plan reads the listing, because the reasoning it fed is already recorded as the path, so the route skips it. `sourceSteps` records which of the caller's calls each surviving step came from.
 
 It cannot do anything the upstream server could not already do, the server author can read exactly what it will do, and it behaves identically every time. That last property is what lets `npm test` assert the exact set of routes the committed corpus produces, which is the only reason to believe any number on this page.
 
