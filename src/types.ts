@@ -62,9 +62,24 @@ export type Binding =
    *  handles, so dataflow is embedded rather than exact. */
   | { kind: "template"; parts: Array<string | Binding> };
 
+/** Arguments of a plan step: the shape the upstream tool expects, with a
+ *  Binding wherever a value goes. Nested so the plan reads like the call it
+ *  will make, rather than as a flat list of paths. */
+export type BindingTree = Binding | { [k: string]: BindingTree } | BindingTree[];
+
 export interface PlanStep {
   call: string;
-  args: Record<string, Binding>;
+  args: { [k: string]: BindingTree };
+}
+
+const BINDING_KINDS = new Set(["const", "param", "from", "template"]);
+
+export function isBinding(v: unknown): v is Binding {
+  return (
+    typeof v === "object" && v !== null && !Array.isArray(v) &&
+    typeof (v as { kind?: unknown }).kind === "string" &&
+    BINDING_KINDS.has((v as { kind: string }).kind)
+  );
 }
 
 export interface RoutePlan {

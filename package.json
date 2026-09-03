@@ -10,7 +10,8 @@
     "detect": "tsx src/cli/detect.ts",
     "report": "tsx src/cli/report.ts",
     "test": "tsx --test test/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify": "tsx src/cli/verify.ts"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",

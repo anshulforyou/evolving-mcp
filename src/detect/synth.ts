@@ -12,7 +12,7 @@
  * of control primitives would be worth adding.
  */
 import { createHash } from "node:crypto";
-import type { ArgAnalysis, Binding, Cluster, Json, JsonSchema, PlanStep, RoutePlan } from "../types.js";
+import type { ArgAnalysis, Binding, BindingTree, Cluster, Json, JsonSchema, PlanStep, RoutePlan } from "../types.js";
 
 const MAX_NAME = 128;
 
@@ -36,6 +36,12 @@ export function routeName(cluster: Cluster, params: string[]): string {
 }
 
 const dedupeAdjacent = (xs: string[]): string[] => xs.filter((x, i) => x !== xs[i - 1]);
+
+function collectTreeParams(t: BindingTree, into: Set<string>): void {
+  if (Array.isArray(t)) { for (const x of t) collectTreeParams(x, into); return; }
+  if (typeof t === "object" && t !== null && "kind" in t) { collectParams(t as Binding, into); return; }
+  for (const v of Object.values(t as { [k: string]: BindingTree })) collectTreeParams(v, into);
+}
 
 function collectParams(b: Binding, into: Set<string>): void {
   if (b.kind === "param") into.add(b.name);
@@ -86,12 +92,9 @@ export function synthesize(cluster: Cluster, analyses: ArgAnalysis[]): Synthesiz
   const steps: PlanStep[] = cluster.shape.tools.map((tool) => ({ call: tool, args: {} }));
   for (const a of analyses) {
     if (!a.binding) continue;
-    const holder: Record<string, unknown> = {};
-    setPath(holder, a.argPath, a.binding);
-    // argPath is always rooted at a single top-level key for MCP tool args.
-    for (const [k, v] of Object.entries(holder)) {
-      steps[a.step]!.args[k] = v as Binding;
-    }
+    // Bindings are written into the same nested shape the upstream tool
+    // expects, so a step's args read like the call it will make.
+    setPath(steps[a.step]!.args as Record<string, unknown>, a.argPath, a.binding);
   }
 
   const properties: Record<string, Json> = {};

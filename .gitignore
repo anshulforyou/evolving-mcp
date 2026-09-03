@@ -1,5 +1,6 @@
 node_modules/
-*.db
+corpus/*.db
+corpus/*.db-journal
 *.db-journal
 .DS_Store
 out/

@@ -224,9 +224,20 @@ function templateFor(
   }
 
   if (holes === 0) return null;
+  const merged = mergeLiterals(parts);
+
+  // A "template" that is a single hole with no literal around it is not a
+  // template, it is the argument itself. Fall through and let it be classified
+  // as a plain param, which keeps the plan honest and readable.
+  if (merged.length === 1 && typeof merged[0] !== "string") return null;
+
+  // The role turns on whether anything is actually read out of an earlier
+  // result. A string stitched together purely from caller-supplied values is a
+  // parameterized argument, not a derivation.
+  const readsEarlier = merged.some((p) => typeof p !== "string" && p.kind === "from");
   return {
-    role: "derived",
-    binding: { kind: "template", parts: mergeLiterals(parts) },
+    role: readsEarlier ? "derived" : "param",
+    binding: { kind: "template", parts: merged },
     ...(discoveredIn !== undefined ? { discoveredIn } : {}),
     ...(notes.length ? { note: notes.join("; ") } : {}),
   };
