@@ -1,0 +1,6 @@
+node_modules/
+*.db
+*.db-journal
+.DS_Store
+out/
+scratch/
