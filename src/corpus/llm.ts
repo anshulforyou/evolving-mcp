@@ -58,10 +58,16 @@ export function flushCache(): void {
   writeFileSync(CACHE, JSON.stringify(cache, Object.keys(cache).sort(), 2) + "\n");
 }
 
-const SYSTEM =
+const SQL_SYSTEM =
   "You write SQLite SQL. Output ONLY the query on a single line. No markdown, no code fences, no explanation, no trailing semicolon.";
 
-export async function askForSql(prompt: string): Promise<string> {
+const PICK_SYSTEM =
+  "You pick exactly one file path from a listing. Output ONLY the path, exactly as it appears. No markdown, no explanation.";
+
+export const askForSql = (prompt: string): Promise<string> => ask(SQL_SYSTEM, prompt);
+export const askToPickPath = (prompt: string): Promise<string> => ask(PICK_SYSTEM, prompt);
+
+async function ask(SYSTEM: string, prompt: string): Promise<string> {
   const k = key(SYSTEM, prompt);
   const cached = cache[k];
   if (cached !== undefined) {

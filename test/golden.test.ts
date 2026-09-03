@@ -16,10 +16,10 @@ import { select } from "../src/detect/select.js";
  * Regenerate deliberately with EMCP_UPDATE_GOLDEN=1, and the diff is then the
  * thing to review.
  */
+const CORPORA = ["corpus/traces.jsonl", "corpus/traces-llm.jsonl", "corpus/traces-fs.jsonl"];
 const GOLDEN = "test/golden.routes.json";
 
-const chosen = select(detect(segment(loadCalls("corpus/traces.jsonl"))));
-const actual = chosen.map((s) => ({
+const routesFor = (path: string) => select(detect(segment(loadCalls(path)))).map((s) => ({
   name: s.candidate.plan!.name,
   steps: s.candidate.plan!.steps.map((x) => x.call),
   params: Object.keys((s.candidate.plan!.inputSchema["properties"] ?? {}) as Record<string, unknown>).sort(),
@@ -28,10 +28,12 @@ const actual = chosen.map((s) => ({
   schemaTokenCost: s.candidate.score.schemaTokenCost,
 }));
 
+const actual = Object.fromEntries(CORPORA.map((p) => [p, routesFor(p)]));
+
 test("the committed corpus produces exactly the recorded set of routes", () => {
   if (process.env["EMCP_UPDATE_GOLDEN"] === "1" || !existsSync(GOLDEN)) {
     writeFileSync(GOLDEN, JSON.stringify(actual, null, 2) + "\n");
-    console.log(`wrote ${GOLDEN} (${actual.length} routes)`);
+    console.log(`wrote ${GOLDEN}`);
     return;
   }
   const expected = JSON.parse(readFileSync(GOLDEN, "utf8")) as typeof actual;
@@ -39,6 +41,14 @@ test("the committed corpus produces exactly the recorded set of routes", () => {
 });
 
 test("detection is deterministic across repeated runs", () => {
-  const again = select(detect(segment(loadCalls("corpus/traces.jsonl")))).map((s) => s.candidate.plan!.name);
-  assert.deepEqual(again, chosen.map((s) => s.candidate.plan!.name));
+  for (const p of CORPORA) {
+    assert.deepEqual(routesFor(p).map((r) => r.name), actual[p]!.map((r) => r.name), p);
+  }
+});
+
+test("every corpus records at least one error-free episode per goal", () => {
+  for (const p of CORPORA) {
+    const calls = loadCalls(p);
+    assert.equal(calls.filter((c) => c.isError).length, 0, `${p} contains a failed call`);
+  }
 });

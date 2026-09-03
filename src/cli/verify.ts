@@ -11,6 +11,7 @@
  * against the live server and compares real payloads.
  */
 import { createHash } from "node:crypto";
+import { resolve } from "node:path";
 import { detect, loadCalls, segment } from "../detect/index.js";
 import { select } from "../detect/select.js";
 import { shapeOf } from "../detect/canon.js";
@@ -21,6 +22,12 @@ import type { Episode, RoutePlan } from "../types.js";
 
 const DB = process.env["EMCP_DB"] ?? "corpus/store.db";
 const CORPUS = process.env["EMCP_CORPUS"] ?? "corpus/traces.jsonl";
+const TREE = process.env["EMCP_TREE"] ?? "corpus/tree";
+
+/** Which upstream server this corpus was recorded against. */
+const SERVER: [string, string[]] = process.env["EMCP_SERVER"] === "fs"
+  ? ["npx", ["-y", "@modelcontextprotocol/server-filesystem", resolve(TREE)]]
+  : ["uvx", ["--quiet", "--from", "mcp-server-sqlite", "--with", "mcp==1.9.4", "mcp-server-sqlite", "--db-path", DB]];
 
 /** Deterministic 70/30 split, stable across runs and machines. */
 function split(episodes: Episode[]): { train: Episode[]; test: Episode[] } {
@@ -45,10 +52,7 @@ async function main(): Promise<void> {
   console.log(`train ${train.length} episodes, held out ${test.length}`);
   console.log(`routes mined on train: ${routes.length}\n`);
 
-  const client = new StdioMcpClient("uvx", [
-    "--quiet", "--from", "mcp-server-sqlite", "--with", "mcp==1.9.4",
-    "mcp-server-sqlite", "--db-path", DB,
-  ]);
+  const client = new StdioMcpClient(SERVER[0], SERVER[1]);
   await client.initialize();
 
   let matched = 0, correct = 0, wrong = 0, unrecoverable = 0, threw = 0;
