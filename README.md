@@ -11,16 +11,18 @@ This repository is the evidence, not the product. It answers one question offlin
 ```
 server      who writes the arguments    eps routes  ep cov  suppressible  of that, saved
 ------------------------------------------------------------------------------------------
-sqlite      queries written by hand      64     12   87.5% 54.8% of 42,404           87.1%
-sqlite      queries written by a model   44      7   47.7% 4.9% of 330,112           38.2%
-filesystem  targets chosen by a model    35      5   97.1% 92.5% of 24,969           97.1%
+sqlite      queries written by hand      64     12   87.5% 54.8% of 42,404    87.1%   1 style
+sqlite      queries written by a model   44      6   40.9%  4.9% of 330,112   40.4%   2 styles
+filesystem  targets chosen by a model    70      5   97.1% 88.0% of 31,038    97.1%   2 styles
 ```
 
 Read the three rows in order, because the middle one is the point.
 
 **Row one** is the technique working on a corpus I wrote myself, and it is not trustworthy. Row two is the same thing after a real model wrote the SQL instead. Asked the same question in six different wordings, a model produces between two and six structurally different queries, and lexical matching cannot see through any of it. Most of row one was an artifact of my own consistency.
 
-**Row three** is the same detector against a server whose tools take a `path` instead of a free-form string. Asked seven different ways, callers landed on the same file **97%** of the time. Held out on 8 episodes the miner never saw, every one matched a route, every one replayed to the caller's exact answer, and 92.2% of held-out result tokens never needed to enter a context.
+**Row three** is the same detector against a server whose tools take a `path` instead of a free-form string. Asked seven different ways, callers landed on the same file **97%** of the time. Held out on 21 episodes the miner never saw, **16 of 16** that matched a route replayed to the caller's exact answer, and 89.9% of held-out result tokens never needed to enter a context.
+
+Row three also records every goal through two different explorations: one caller takes a single `directory_tree`, another walks seven directories one at a time. Three calls against eight, different tools. They prune to the same one-step route and merge, so the surface carries one route where it would otherwise carry two.
 
 So the honest claim is narrower and more useful than the one this started with:
 
