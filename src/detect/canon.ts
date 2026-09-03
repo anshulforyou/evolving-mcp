@@ -20,6 +20,7 @@
  */
 import { tokenize } from "./dataflow.js";
 import { canonicalizeAliases } from "./sql.js";
+import { footprintKey } from "./footprint.js";
 import type { Json, RecordedCall, Shape } from "../types.js";
 
 /** Sorted argument paths of one call, so key order cannot affect the shape. */
@@ -47,8 +48,9 @@ export function argPaths(args: Json, prefix = "$"): string[] {
 /** Masks leaf literals out of a composed string, keeping its structure.
  *  Language-aware normalization runs first, so that two strings which differ
  *  only in what they named things reach the same skeleton. */
-export function skeleton(s: string): string {
-  return tokenize(canonicalizeAliases(s))
+export function skeleton(s: string, opts: { aliases?: boolean } = {}): string {
+  const src = opts.aliases === false ? s : canonicalizeAliases(s);
+  return tokenize(src)
     .map((t) => {
       if (/^'/.test(t)) return "'?'";
       if (/^\d/.test(t)) return "?";
@@ -74,13 +76,24 @@ export function argSignature(args: Json, prefix = "$"): string[] {
       return;
     }
     // Only strings long enough to have internal structure contribute a
-    // skeleton. A short scalar is a value, not a shape.
-    if (typeof v === "string" && v.length > 24) out.push(`${p}=${skeleton(v)}`);
-    else out.push(p);
+    // signature. A short scalar is a value, not a shape.
+    //
+    // A language-aware footprint is preferred where one applies. It keeps what
+    // determines the answer (tables, grouping, filters, aggregates) and drops
+    // what a model varies freely between askings. The lexical skeleton is the
+    // fallback for composed strings nothing understands yet.
+    if (typeof v === "string" && v.length > 24) {
+      const fp = FOOTPRINTS ? footprintKey(v, "loose") : null;
+      out.push(`${p}=${fp ?? skeleton(v)}`);
+    } else out.push(p);
   };
   walk(args, prefix);
   return out;
 }
+
+/** Language-aware normalization can be turned off to measure what it is worth.
+ *  Set EMCP_FOOTPRINT=0 to fall back to the lexical skeleton everywhere. */
+const FOOTPRINTS = process.env["EMCP_FOOTPRINT"] !== "0";
 
 export function shapeOf(calls: RecordedCall[]): Shape {
   const parts = calls.map((c) => `${c.tool}(${argSignature(c.args).join(",")})`);
