@@ -19,6 +19,7 @@
  * to decide whether each one is a constant, a parameter or derived.
  */
 import { tokenize } from "./dataflow.js";
+import { canonicalizeAliases } from "./sql.js";
 import type { Json, RecordedCall, Shape } from "../types.js";
 
 /** Sorted argument paths of one call, so key order cannot affect the shape. */
@@ -43,9 +44,11 @@ export function argPaths(args: Json, prefix = "$"): string[] {
   return out;
 }
 
-/** Masks leaf literals out of a composed string, keeping its structure. */
+/** Masks leaf literals out of a composed string, keeping its structure.
+ *  Language-aware normalization runs first, so that two strings which differ
+ *  only in what they named things reach the same skeleton. */
 export function skeleton(s: string): string {
-  return tokenize(s)
+  return tokenize(canonicalizeAliases(s))
     .map((t) => {
       if (/^'/.test(t)) return "'?'";
       if (/^\d/.test(t)) return "?";

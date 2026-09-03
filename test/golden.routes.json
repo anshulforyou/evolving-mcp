@@ -1,6 +1,6 @@
 [
   {
-    "name": "list_tables_then_describe_table_then_read_query_by_invoice_id.323fb4",
+    "name": "list_tables_then_describe_table_then_read_query_by_invoice_id.d68b7b",
     "steps": [
       "list_tables",
       "describe_table",
@@ -14,10 +14,10 @@
     ],
     "support": 6,
     "incrementalTokens": 2982,
-    "schemaTokenCost": 78
+    "schemaTokenCost": 79
   },
   {
-    "name": "list_tables_then_describe_table_then_read_query_by_last_name.e73971",
+    "name": "list_tables_then_describe_table_then_read_query_by_last_name.dd5151",
     "steps": [
       "list_tables",
       "describe_table",
@@ -63,7 +63,7 @@
     "schemaTokenCost": 75
   },
   {
-    "name": "list_tables_then_describe_table_then_read_query_by_milliseconds.bfeced",
+    "name": "list_tables_then_describe_table_then_read_query_by_milliseconds.1f7069",
     "steps": [
       "list_tables",
       "describe_table",
@@ -75,10 +75,10 @@
     ],
     "support": 4,
     "incrementalTokens": 1764,
-    "schemaTokenCost": 75
+    "schemaTokenCost": 77
   },
   {
-    "name": "list_tables_then_describe_table_then_read_query_by_last_name.06ea34",
+    "name": "list_tables_then_describe_table_then_read_query_by_last_name.7f3ae2",
     "steps": [
       "list_tables",
       "describe_table",
@@ -89,10 +89,10 @@
     ],
     "support": 6,
     "incrementalTokens": 1482,
-    "schemaTokenCost": 78
+    "schemaTokenCost": 80
   },
   {
-    "name": "list_tables_then_describe_table_then_read_query_by_spend.dace95",
+    "name": "list_tables_then_describe_table_then_read_query_by_spend.f3ee27",
     "steps": [
       "list_tables",
       "describe_table",
@@ -104,10 +104,10 @@
     ],
     "support": 3,
     "incrementalTokens": 1443,
-    "schemaTokenCost": 77
+    "schemaTokenCost": 78
   },
   {
-    "name": "list_tables_then_describe_table_then_read_query_by_revenue.1ca0e9",
+    "name": "list_tables_then_describe_table_then_read_query_by_revenue.28643b",
     "steps": [
       "list_tables",
       "describe_table",
@@ -119,7 +119,7 @@
     ],
     "support": 3,
     "incrementalTokens": 1443,
-    "schemaTokenCost": 80
+    "schemaTokenCost": 78
   },
   {
     "name": "list_tables_then_describe_table_then_read_query_by_milliseconds.0cede2",
@@ -151,7 +151,7 @@
     "schemaTokenCost": 75
   },
   {
-    "name": "list_tables_then_describe_table_then_read_query.9b92eb",
+    "name": "list_tables_then_describe_table_then_read_query.77fe7f",
     "steps": [
       "list_tables",
       "describe_table",
@@ -164,7 +164,7 @@
     "schemaTokenCost": 56
   },
   {
-    "name": "list_tables_then_describe_table_then_read_query_by_spend.058146",
+    "name": "list_tables_then_describe_table_then_read_query_by_spend.88fc98",
     "steps": [
       "list_tables",
       "describe_table",
@@ -175,6 +175,6 @@
     ],
     "support": 3,
     "incrementalTokens": 741,
-    "schemaTokenCost": 77
+    "schemaTokenCost": 78
   }
 ]

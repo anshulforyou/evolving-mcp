@@ -23,6 +23,15 @@ const normCount = new Map<string, number>();
 for (const nm of norms) normCount.set(nm, (normCount.get(nm) ?? 0) + 1);
 const totalResultTokens = calls.reduce((a, c) => a + c.resultTokens, 0);
 
+// A route returns its last call's result, so that payload reaches the caller
+// either way and was never available to suppress. Measuring against every
+// result token understates the work by counting an unreachable denominator.
+// On this server the final read_query dominates, so the two differ a lot.
+const suppressibleTokens = episodes.reduce(
+  (a, ep) => a + ep.calls.slice(0, -1).reduce((x, c) => x + c.resultTokens, 0),
+  0,
+);
+
 /* ---------------- selection and coverage ---------------- */
 const chosen = select(candidates);
 const promotedTraces = new Set<string>();
@@ -38,6 +47,7 @@ console.log(`# evolving-mcp phase 0
   distinct callers         ${new Set(calls.map((c) => c.caller)).size}
   distinct goals           ${new Set(calls.map((c) => c.goalId)).size}
   result tokens total      ${n(totalResultTokens)}
+  of which suppressible    ${n(suppressibleTokens)}  (${((suppressibleTokens / totalResultTokens) * 100).toFixed(0)}%, the rest is the answer the caller keeps)
   mean tokens per episode  ${n(Math.round(totalResultTokens / episodes.length))}
   normalizer used          ${[...normCount].map(([k, v]) => `${k}=${v}`).join(", ")}
 
@@ -123,7 +133,9 @@ const totalSaved = chosen.reduce((a, s) => a + s.incrementalTokens, 0);
 const totalSchema = chosen.reduce((a, s) => a + s.candidate.score.schemaTokenCost, 0);
 console.log(`\n## Totals over this corpus, counted once
   result tokens recorded                          ${n(totalResultTokens)}
+  of which a route could ever suppress            ${n(suppressibleTokens)}
   tokens the selected routes keep out of context  ${n(totalSaved)}
-  as a share of all result tokens                 ${((totalSaved / totalResultTokens) * 100).toFixed(1)}%
+  share of suppressible tokens (the real figure)  ${((totalSaved / Math.max(1, suppressibleTokens)) * 100).toFixed(1)}%
+  share of all result tokens                      ${((totalSaved / totalResultTokens) * 100).toFixed(1)}%
   schema tokens added to every tools/list         ${n(totalSchema)}
   one full corpus pass pays the schema back       ${totalSchema > 0 ? (totalSaved / totalSchema).toFixed(1) : "n/a"}x`);
