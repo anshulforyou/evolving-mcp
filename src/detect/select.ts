@@ -52,14 +52,15 @@ export function select(candidates: Candidate[]): Selection[] {
   const chosen: Selection[] = [];
 
   for (const c of ranked) {
-    const returnedStep = c.cluster.shape.tools.length - 1;
     let tokens = 0;
     let cells = 0;
     const claim: string[] = [];
 
     const from = effectiveStart(c);
     for (const m of c.cluster.members) {
-      const window = m.episode.calls.slice(m.start, m.end);
+      const orig = m.episode.origCalls;
+      const at = orig ? m.episode.origIndex![m.start]! : m.start;
+      const window = (orig ?? m.episode.calls).slice(at, orig ? orig.length : m.end);
       for (let i = 0; i < window.length; i++) {
         const call = window[i]!;
         const id = cellId(call.traceId, call.seq);
@@ -68,7 +69,7 @@ export function select(candidates: Candidate[]): Selection[] {
         cells++;
         // The final result still goes back to the caller, so it is absorbed
         // but not suppressed.
-        if (i !== returnedStep && i >= from) tokens += call.resultTokens;
+        if (i !== window.length - 1 && i >= from) tokens += call.resultTokens;
       }
     }
 

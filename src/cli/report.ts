@@ -60,6 +60,7 @@ servers emit today.
   plans built (recipe)     ${n(promotable.length)}
   blocked, no plan         ${n(blocked.length)}
   net-positive routes      ${n(worthIt.length)}
+  upstream calls pruned    ${n(chosen.reduce((a, s) => a + s.candidate.score.upstreamCallsPruned * s.candidate.score.support, 0))} across the corpus (calls a route never makes)
   routes actually selected ${n(chosen.length)}   (non-overlapping, greedy)
   route names unique       ${uniqueNames.size === promotable.length ? "yes" : `NO (${promotable.length - uniqueNames.size} collisions)`}
 
@@ -122,9 +123,11 @@ for (const c of blocked.slice(0, 6)) {
 /* ---------------- selected set ---------------- */
 console.log(`\n## The set a server would actually promote (${chosen.length})\n`);
 for (const s of chosen) {
+  const p = s.candidate.plan!;
   console.log(
-    `  ${s.candidate.plan!.name}\n` +
-      `      suppresses ${n(s.incrementalTokens)} tok across ${n(s.incrementalCalls)} calls, schema ${n(s.candidate.score.schemaTokenCost)} tok`,
+    `  ${p.name}\n` +
+      `      suppresses ${n(s.incrementalTokens)} tok across ${n(s.incrementalCalls)} calls, schema ${n(s.candidate.score.schemaTokenCost)} tok\n` +
+      `      runs ${p.steps.length} upstream call(s), skipping ${s.candidate.score.upstreamCallsPruned} it never needed to make`,
   );
 }
 

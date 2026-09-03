@@ -71,7 +71,9 @@ async function main(): Promise<void> {
     matched++;
 
     const window = ep.calls.slice(hit.start);
-    const params = recoverParams(hit.plan, window.map((c) => c.args));
+    // The plan no longer has a step for every call the caller made, so line the
+    // surviving steps back up with the calls they came from.
+    const params = recoverParams(hit.plan, hit.plan.sourceSteps.map((i) => window[i]!.args));
     if (!params) { unrecoverable++; failures.push(`${ep.goalId}: params not recoverable`); continue; }
 
     try {

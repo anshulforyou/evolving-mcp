@@ -12,7 +12,8 @@
  * of control primitives would be worth adding.
  */
 import { createHash } from "node:crypto";
-import type { ArgAnalysis, Binding, BindingTree, Cluster, Json, JsonSchema, PlanStep, RoutePlan } from "../types.js";
+import { prune } from "./prune.js";
+import { isBinding, type ArgAnalysis, type Binding, type BindingTree, type Cluster, type Json, type JsonSchema, type PlanStep, type RoutePlan } from "../types.js";
 
 const MAX_NAME = 128;
 
@@ -26,16 +27,27 @@ const MAX_NAME = 128;
  * called the same thing because the chain alone does not identify a cluster.
  * The shape digest is what makes it unique.
  */
-export function routeName(cluster: Cluster, params: string[]): string {
-  const chain = dedupeAdjacent(cluster.shape.tools).join("_then_");
+export function routeName(tools: string[], params: string[], digestSource: string): string {
+  const chain = dedupeAdjacent(tools).join("_then_");
   const suffix = params.length ? `_by_${params.map((p) => p.replace(/_\d+$/, "")).join("_")}` : "";
-  const digest = createHash("sha256").update(cluster.shape.key).digest("hex").slice(0, 6);
+  const digest = createHash("sha256").update(digestSource).digest("hex").slice(0, 6);
   const name = `${chain}${suffix}.${digest}`.replace(/[^A-Za-z0-9_.-]/g, "_");
   if (name.length <= MAX_NAME) return name;
   return `${name.slice(0, MAX_NAME - 7).replace(/[_.]+$/, "")}.${digest}`;
 }
 
 const dedupeAdjacent = (xs: string[]): string[] => xs.filter((x, i) => x !== xs[i - 1]);
+
+/** Every argument is a bare parameter, so the route carries no knowledge. */
+function isPassthrough(step: PlanStep): boolean {
+  const bare = (t: BindingTree): boolean => {
+    if (isBinding(t)) return (t as Binding).kind === "param";
+    if (Array.isArray(t)) return t.every(bare);
+    return Object.values(t as { [k: string]: BindingTree }).every(bare);
+  };
+  const args = Object.values(step.args);
+  return args.length > 0 && args.every(bare);
+}
 
 function collectTreeParams(t: BindingTree, into: Set<string>): void {
   if (Array.isArray(t)) { for (const x of t) collectTreeParams(x, into); return; }
@@ -103,14 +115,39 @@ export function synthesize(cluster: Cluster, analyses: ArgAnalysis[]): Synthesiz
     ? { type: "object", properties, required: [...paramNames], additionalProperties: false }
     : { type: "object", additionalProperties: false };
 
-  const name = routeName(cluster, [...paramNames]);
+  // Exploration calls whose results nothing reads are dropped here, which is
+  // what lets two episodes that explored differently reach the same route.
+  const pruned = prune(steps, steps.length - 1);
+
+  // Pruning can leave a route that is the upstream tool wearing a hat. If one
+  // step survives and every argument of it is a free parameter, the caller
+  // supplies exactly what they would have supplied to the tool itself, and the
+  // route adds a name and nothing else.
+  //
+  // It is worse than useless on this data. `read_query(query)` scores well,
+  // because the exploration calls it drops really were suppressed, but nobody
+  // can write that query without first reading the schema, so the caller makes
+  // those calls anyway and the saving never happens.
+  if (pruned.steps.length === 1 && isPassthrough(pruned.steps[0]!)) {
+    return {
+      blockedBy:
+        `pruned to a single ${pruned.steps[0]!.call} whose arguments are all free parameters, ` +
+        `which is the upstream tool under another name`,
+    };
+  }
+  const signature = JSON.stringify({ steps: pruned.steps, returns: pruned.returns });
+  const name = routeName(pruned.steps.map((x) => x.call), [...paramNames], signature);
+
   return {
     plan: {
       name,
-      description: `Runs ${cluster.shape.tools.length} upstream calls (${dedupeAdjacent(cluster.shape.tools).join(", ")}) as one step and returns the final result.`,
+      description:
+        `Replaces ${cluster.shape.tools.length} upstream calls with ${pruned.steps.length} ` +
+        `(${dedupeAdjacent(pruned.steps.map((x) => x.call)).join(", ")}) and returns the final result.`,
       inputSchema,
-      steps,
-      returns: steps.length - 1,
+      steps: pruned.steps,
+      returns: pruned.returns,
+      sourceSteps: pruned.sourceSteps,
     },
   };
 }

@@ -24,6 +24,7 @@ const PLAN: RoutePlan = {
     { call: "fetch", args: { id: { kind: "from", step: 0, path: "$[0].id" } } },
   ],
   returns: 1,
+  sourceSteps: [0, 1],
 };
 
 test("a plan runs, threading a value from one step into the next", async () => {

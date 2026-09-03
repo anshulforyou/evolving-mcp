@@ -43,6 +43,12 @@ export interface Episode {
   goalId?: string;
   variant?: string;
   calls: RecordedCall[];
+  /** Set on a reduced episode, where exploration calls nothing reads have been
+   *  taken out of `calls`. Token accounting must run against these, because the
+   *  caller was making all of them and a route spares them all. */
+  origCalls?: RecordedCall[];
+  /** Index in `origCalls` of each surviving call. */
+  origIndex?: number[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -89,6 +95,10 @@ export interface RoutePlan {
   steps: PlanStep[];
   /** Which step's result the route returns. */
   returns: number;
+  /** Index into the mined window that each surviving step came from.
+   *  Exploration calls whose results nothing reads are pruned, so this is not
+   *  the identity mapping and the gaps are the calls the route skips. */
+  sourceSteps: number[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -145,8 +155,10 @@ export interface Score {
   rawIntermediateTokensSaved: number;
   /** Upstream calls collapsed into one, per use. */
   roundTripsSaved: number;
-  /** Upstream time the route still spends, since every underlying call still
-   *  runs. Recorded so no one mistakes round trips saved for time saved. The
+  /** Upstream calls the route does not make at all, because nothing in the
+   *  plan reads their results. */
+  upstreamCallsPruned: number;
+  /** Upstream time the route still spends, for the calls that survive pruning. Recorded so no one mistakes round trips saved for time saved. The
    *  real time saving is (roundTripsSaved x one model inference), which cannot
    *  be measured without a model in the loop. */
   upstreamLatencyMs: number;

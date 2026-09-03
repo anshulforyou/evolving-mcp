@@ -1,12 +1,8 @@
 {
   "corpus/traces.jsonl": [
     {
-      "name": "list_tables_then_describe_table_then_read_query_by_invoice_id.2fb530",
+      "name": "read_query_by_invoice_id.07357e",
       "steps": [
-        "list_tables",
-        "describe_table",
-        "describe_table",
-        "read_query",
         "read_query",
         "read_query"
       ],
@@ -15,14 +11,11 @@
       ],
       "support": 6,
       "incrementalTokens": 2982,
-      "schemaTokenCost": 78
+      "schemaTokenCost": 66
     },
     {
-      "name": "list_tables_then_describe_table_then_read_query_by_last_name.2c40d0",
+      "name": "read_query_by_last_name.c3e53f",
       "steps": [
-        "list_tables",
-        "describe_table",
-        "describe_table",
         "read_query"
       ],
       "params": [
@@ -30,13 +23,11 @@
       ],
       "support": 6,
       "incrementalTokens": 2886,
-      "schemaTokenCost": 80
+      "schemaTokenCost": 67
     },
     {
-      "name": "list_tables_then_describe_table_then_read_query_by_last_name.1eb93f",
+      "name": "read_query_by_last_name.99666f",
       "steps": [
-        "list_tables",
-        "describe_table",
         "read_query",
         "read_query"
       ],
@@ -45,14 +36,11 @@
       ],
       "support": 6,
       "incrementalTokens": 2098,
-      "schemaTokenCost": 79
+      "schemaTokenCost": 66
     },
     {
-      "name": "list_tables_then_describe_table_then_read_query_by_name.e1ea8a",
+      "name": "read_query_by_name.761cf8",
       "steps": [
-        "list_tables",
-        "describe_table",
-        "describe_table",
         "read_query",
         "read_query"
       ],
@@ -61,14 +49,11 @@
       ],
       "support": 6,
       "incrementalTokens": 2057,
-      "schemaTokenCost": 76
+      "schemaTokenCost": 63
     },
     {
-      "name": "list_tables_then_describe_table_then_read_query_by_milliseconds.6edfd3",
+      "name": "read_query_by_milliseconds.57d45d",
       "steps": [
-        "list_tables",
-        "describe_table",
-        "describe_table",
         "read_query"
       ],
       "params": [
@@ -76,13 +61,11 @@
       ],
       "support": 4,
       "incrementalTokens": 1764,
-      "schemaTokenCost": 77
+      "schemaTokenCost": 65
     },
     {
-      "name": "list_tables_then_describe_table_then_read_query_by_last_name.64053c",
+      "name": "read_query_by_last_name.503696",
       "steps": [
-        "list_tables",
-        "describe_table",
         "read_query"
       ],
       "params": [
@@ -90,14 +73,11 @@
       ],
       "support": 6,
       "incrementalTokens": 1482,
-      "schemaTokenCost": 78
+      "schemaTokenCost": 65
     },
     {
-      "name": "list_tables_then_describe_table_then_read_query_by_spend.6c301d",
+      "name": "read_query_by_spend.6b8fbd",
       "steps": [
-        "list_tables",
-        "describe_table",
-        "describe_table",
         "read_query"
       ],
       "params": [
@@ -105,14 +85,11 @@
       ],
       "support": 3,
       "incrementalTokens": 1443,
-      "schemaTokenCost": 79
+      "schemaTokenCost": 68
     },
     {
-      "name": "list_tables_then_describe_table_then_read_query_by_revenue.14fd9e",
+      "name": "read_query_by_revenue.4672fa",
       "steps": [
-        "list_tables",
-        "describe_table",
-        "describe_table",
         "read_query"
       ],
       "params": [
@@ -120,13 +97,11 @@
       ],
       "support": 3,
       "incrementalTokens": 1443,
-      "schemaTokenCost": 79
+      "schemaTokenCost": 66
     },
     {
-      "name": "list_tables_then_describe_table_then_read_query_by_milliseconds.4d9267",
+      "name": "read_query_by_milliseconds.dcd7d0",
       "steps": [
-        "list_tables",
-        "describe_table",
         "read_query"
       ],
       "params": [
@@ -134,13 +109,11 @@
       ],
       "support": 4,
       "incrementalTokens": 1140,
-      "schemaTokenCost": 77
+      "schemaTokenCost": 65
     },
     {
-      "name": "list_tables_then_describe_table_then_read_query_by_name.d5c4f1",
+      "name": "read_query_by_name.90050d",
       "steps": [
-        "list_tables",
-        "describe_table",
         "read_query",
         "read_query"
       ],
@@ -149,26 +122,21 @@
       ],
       "support": 6,
       "incrementalTokens": 1121,
-      "schemaTokenCost": 77
+      "schemaTokenCost": 63
     },
     {
-      "name": "list_tables_then_describe_table_then_read_query.3c0330",
+      "name": "read_query.299179",
       "steps": [
-        "list_tables",
-        "describe_table",
-        "describe_table",
         "read_query"
       ],
       "params": [],
       "support": 3,
       "incrementalTokens": 1089,
-      "schemaTokenCost": 56
+      "schemaTokenCost": 42
     },
     {
-      "name": "list_tables_then_describe_table_then_read_query_by_spend.e1a2eb",
+      "name": "read_query_by_spend.3eb46d",
       "steps": [
-        "list_tables",
-        "describe_table",
         "read_query"
       ],
       "params": [
@@ -176,16 +144,13 @@
       ],
       "support": 3,
       "incrementalTokens": 741,
-      "schemaTokenCost": 79
+      "schemaTokenCost": 67
     }
   ],
   "corpus/traces-llm.jsonl": [
     {
-      "name": "list_tables_then_describe_table_then_read_query_by_total_last_name.c9eb3f",
+      "name": "read_query_by_total_last_name.32eb31",
       "steps": [
-        "list_tables",
-        "describe_table",
-        "describe_table",
         "read_query"
       ],
       "params": [
@@ -194,14 +159,11 @@
       ],
       "support": 3,
       "incrementalTokens": 1443,
-      "schemaTokenCost": 93
+      "schemaTokenCost": 80
     },
     {
-      "name": "list_tables_then_describe_table_then_read_query_by_total_billing_country.397399",
+      "name": "read_query_by_total_billing_country.55cc70",
       "steps": [
-        "list_tables",
-        "describe_table",
-        "describe_table",
         "read_query"
       ],
       "params": [
@@ -210,14 +172,11 @@
       ],
       "support": 3,
       "incrementalTokens": 1443,
-      "schemaTokenCost": 92
+      "schemaTokenCost": 81
     },
     {
-      "name": "list_tables_then_describe_table_then_read_query_by_quantity_revenue_tracks_t_invoice_items_ii_track_id_name.f78c4d",
+      "name": "read_query_by_quantity_revenue_tracks_t_invoice_items_ii_track_id_name.cd5aea",
       "steps": [
-        "list_tables",
-        "describe_table",
-        "describe_table",
         "read_query"
       ],
       "params": [
@@ -232,14 +191,11 @@
       ],
       "support": 3,
       "incrementalTokens": 1287,
-      "schemaTokenCost": 184
+      "schemaTokenCost": 170
     },
     {
-      "name": "list_tables_then_describe_table_then_read_query_by_table_name_table_name_v2.946cd0",
+      "name": "read_query_by_table_name_table_name_v2.66cdd1",
       "steps": [
-        "list_tables",
-        "describe_table",
-        "describe_table",
         "read_query"
       ],
       "params": [
@@ -249,13 +205,11 @@
       ],
       "support": 3,
       "incrementalTokens": 816,
-      "schemaTokenCost": 112
+      "schemaTokenCost": 101
     },
     {
-      "name": "list_tables_then_describe_table_then_read_query_by_quantity_track_id.d6855d",
+      "name": "read_query_by_quantity_track_id.51e7e7",
       "steps": [
-        "list_tables",
-        "describe_table",
         "read_query"
       ],
       "params": [
@@ -264,13 +218,11 @@
       ],
       "support": 3,
       "incrementalTokens": 744,
-      "schemaTokenCost": 92
+      "schemaTokenCost": 82
     },
     {
-      "name": "list_tables_then_describe_table_then_read_query_by_total_customer_id.e1a2eb",
+      "name": "read_query_by_total_customer_id.474513",
       "steps": [
-        "list_tables",
-        "describe_table",
         "read_query"
       ],
       "params": [
@@ -279,69 +231,59 @@
       ],
       "support": 3,
       "incrementalTokens": 741,
-      "schemaTokenCost": 93
+      "schemaTokenCost": 79
     }
   ],
   "corpus/traces-fs.jsonl": [
     {
-      "name": "directory_tree_then_get_file_info_then_read_text_file.c2209e",
+      "name": "read_text_file.395242",
       "steps": [
-        "directory_tree",
-        "get_file_info",
         "read_text_file"
       ],
       "params": [],
       "support": 7,
       "incrementalTokens": 4620,
-      "schemaTokenCost": 58
+      "schemaTokenCost": 44
     },
     {
-      "name": "directory_tree_then_get_file_info_then_read_text_file.24abd9",
+      "name": "read_text_file.f1b85a",
       "steps": [
-        "directory_tree",
-        "get_file_info",
         "read_text_file"
       ],
       "params": [],
       "support": 7,
       "incrementalTokens": 4620,
-      "schemaTokenCost": 58
+      "schemaTokenCost": 46
     },
     {
-      "name": "directory_tree_then_get_file_info_then_read_text_file.1a3cdf",
+      "name": "read_text_file.ee9d55",
       "steps": [
-        "directory_tree",
-        "get_file_info",
         "read_text_file"
       ],
       "params": [],
       "support": 7,
       "incrementalTokens": 4620,
-      "schemaTokenCost": 59
+      "schemaTokenCost": 45
     },
     {
-      "name": "directory_tree_then_get_file_info_then_read_text_file.d6cff4",
+      "name": "read_text_file.d2d46e",
       "steps": [
-        "directory_tree",
-        "get_file_info",
         "read_text_file"
       ],
       "params": [],
       "support": 7,
       "incrementalTokens": 4620,
-      "schemaTokenCost": 58
+      "schemaTokenCost": 46
     },
     {
-      "name": "directory_tree_then_get_file_info_then_read_text_file.9811a4",
+      "name": "read_text_file.8bde88",
       "steps": [
-        "directory_tree",
-        "get_file_info",
         "read_text_file"
       ],
       "params": [],
       "support": 6,
       "incrementalTokens": 3960,
-      "schemaTokenCost": 59
+      "schemaTokenCost": 46
     }
   ]
 }

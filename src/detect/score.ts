@@ -27,8 +27,10 @@ const MUTATING = new Set(["write_query", "create_table", "append_insight"]);
 const mean = (xs: number[]): number => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
 export function score(cluster: Cluster, analyses: ArgAnalysis[], plan?: RoutePlan): Score {
-  const steps = cluster.shape.tools.length;
-  const returnedStep = steps - 1;
+  // Windows are suffixes, so the call the caller was waiting for is always the
+  // last one in the window. Computing per member rather than from the cluster
+  // shape is what lets a merged cluster hold members whose episodes explored
+  // for a different number of calls.
 
   // A discovered param forces the caller to run the chain up to that step
   // themselves, so the route effectively begins after it.
@@ -38,26 +40,38 @@ export function score(cluster: Cluster, analyses: ArgAnalysis[], plan?: RoutePla
   const effectiveStart = discovered.length ? Math.max(...discovered) + 1 : 0;
 
   const perMember = cluster.members.map((m) => {
-    const window = m.episode.calls.slice(m.start, m.end);
+    // The caller made every call in the original episode, so that is what a
+    // route spares them, not the reduced sequence the miner worked on.
+    const orig = m.episode.origCalls;
+    const from = orig ? m.episode.origIndex![m.start]! : m.start;
+    const window = (orig ?? m.episode.calls).slice(from, orig ? orig.length : m.end);
+    const last = window.length - 1;
     let raw = 0;
     let effective = 0;
     for (let i = 0; i < window.length; i++) {
-      if (i === returnedStep) continue; // the caller still receives this one
+      if (i === last) continue; // the caller still receives this one
       const t = window[i]!.resultTokens;
       raw += t;
       if (i >= effectiveStart) effective += t;
     }
-    return { raw, effective, latency: window.reduce((a, c) => a + c.latencyMs, 0) };
+    const kept = plan ? new Set(plan.sourceSteps) : null;
+    const latency = window.reduce(
+      (a, c, i) => a + (kept === null || kept.has(i) ? c.latencyMs : 0),
+      0,
+    );
+    return { raw, effective, latency, len: window.length };
   });
 
   const cost = plan ? schemaTokenCost(plan) : 0;
   const effective = Math.round(mean(perMember.map((p) => p.effective)));
+  const meanLen = mean(perMember.map((p) => p.len));
 
   return {
     support: cluster.members.length,
+    upstreamCallsPruned: plan ? Math.round(meanLen - plan.steps.length) : 0,
     intermediateTokensSaved: effective,
     rawIntermediateTokensSaved: Math.round(mean(perMember.map((p) => p.raw))),
-    roundTripsSaved: Math.max(0, steps - 1 - effectiveStart),
+    roundTripsSaved: Math.max(0, Math.round(meanLen) - 1 - effectiveStart),
     upstreamLatencyMs: Math.round(mean(perMember.map((p) => p.latency))),
     schemaTokenCost: cost,
     mutating: cluster.shape.tools.some((t) => MUTATING.has(t)),
