@@ -11,9 +11,9 @@ This repository is the evidence, not the product. It answers one question offlin
 ```
 server      who writes the arguments    eps routes  ep cov  suppressible  of that, saved
 ------------------------------------------------------------------------------------------
-sqlite      queries written by hand      64     12   87.5% 54.8% of 42,404    87.1%   1 style
-sqlite      queries written by a model   44      6   40.9%  4.9% of 330,112   40.4%   2 styles
-filesystem  targets chosen by a model    70      5   97.1% 88.0% of 31,038    97.1%   2 styles
+sqlite      queries written by hand      64     12   87.5% 54.8% of 42,404           87.1%
+sqlite      queries written by a model   44      6   40.9%  4.9% of 330,112          40.4%
+filesystem  targets chosen by a model    70      5   97.1% 88.0% of 31,038           97.1%
 ```
 
 Read the three rows in order, because the middle one is the point.
