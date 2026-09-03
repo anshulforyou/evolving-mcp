@@ -146,3 +146,26 @@ export function recoverParams(
   }
   return params;
 }
+
+/**
+ * Lines a plan's steps up against the calls one episode actually made.
+ *
+ * `sourceSteps` records where each step came from in the window it was mined
+ * from, which is fine for reporting but does not survive a merge: a plan mined
+ * from a three-call window gets applied to an eight-call one, and the indices
+ * point nowhere. Since a route replaces a suffix and its steps are a
+ * subsequence of that suffix in order, matching tool names from the end is
+ * both length-independent and unambiguous.
+ */
+export function alignSteps(plan: RoutePlan, window: Array<{ tool: string }>): number[] | null {
+  const idx: number[] = [];
+  let w = window.length - 1;
+  for (let s = plan.steps.length - 1; s >= 0; s--) {
+    const want = plan.steps[s]!.call;
+    while (w >= 0 && window[w]!.tool !== want) w--;
+    if (w < 0) return null;
+    idx.unshift(w);
+    w--;
+  }
+  return idx;
+}

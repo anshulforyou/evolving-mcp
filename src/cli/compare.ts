@@ -34,12 +34,14 @@ for (const c of CORPORA) {
   const covered = new Set<string>();
   for (const s of chosen) for (const m of s.candidate.cluster.members) covered.add(m.episode.traceId);
   const schema = chosen.reduce((a, s) => a + schemaTokenCost(s.candidate.plan!), 0);
+  const styles = new Set(episodes.map((e) => (e.variant ?? "").split("|")[0]));
+  const pruned = chosen.reduce((a, s) => a + s.candidate.score.upstreamCallsPruned * s.candidate.score.support, 0);
 
   console.log(
     `${c.label.padEnd(11)} ${c.who.padEnd(26)} ${String(episodes.length).padStart(4)} ` +
       `${String(chosen.length).padStart(6)} ${pct(covered.size, episodes.length).padStart(7)} ` +
       `${(pct(suppressible, total) + " of " + total.toLocaleString()).padStart(13)} ${pct(saved, suppressible).padStart(15)}` +
-      `   (schema +${schema} tok)`,
+      `   ${styles.size} style(s), ${pruned} calls pruned, schema +${schema} tok`,
   );
 }
 

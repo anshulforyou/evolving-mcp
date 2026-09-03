@@ -241,8 +241,8 @@
         "read_text_file"
       ],
       "params": [],
-      "support": 7,
-      "incrementalTokens": 4620,
+      "support": 14,
+      "incrementalTokens": 5460,
       "schemaTokenCost": 44
     },
     {
@@ -251,8 +251,8 @@
         "read_text_file"
       ],
       "params": [],
-      "support": 7,
-      "incrementalTokens": 4620,
+      "support": 14,
+      "incrementalTokens": 5460,
       "schemaTokenCost": 46
     },
     {
@@ -261,8 +261,8 @@
         "read_text_file"
       ],
       "params": [],
-      "support": 7,
-      "incrementalTokens": 4620,
+      "support": 14,
+      "incrementalTokens": 5460,
       "schemaTokenCost": 45
     },
     {
@@ -271,8 +271,8 @@
         "read_text_file"
       ],
       "params": [],
-      "support": 7,
-      "incrementalTokens": 4620,
+      "support": 14,
+      "incrementalTokens": 5460,
       "schemaTokenCost": 46
     },
     {
@@ -281,8 +281,8 @@
         "read_text_file"
       ],
       "params": [],
-      "support": 6,
-      "incrementalTokens": 3960,
+      "support": 12,
+      "incrementalTokens": 4680,
       "schemaTokenCost": 46
     }
   ]

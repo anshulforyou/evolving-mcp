@@ -16,7 +16,7 @@ import { detect, loadCalls, segment } from "../detect/index.js";
 import { select } from "../detect/select.js";
 import { shapeOf } from "../detect/canon.js";
 import { normalize } from "../detect/normalize.js";
-import { recoverParams, runRoute } from "../detect/interpret.js";
+import { alignSteps, recoverParams, runRoute } from "../detect/interpret.js";
 import { StdioMcpClient } from "../mcp/client.js";
 import type { Episode, RoutePlan } from "../types.js";
 
@@ -46,8 +46,18 @@ async function main(): Promise<void> {
   const episodes = segment(loadCalls(CORPUS));
   const { train, test } = split(episodes);
   const routes = select(detect(train)).map((s) => s.candidate);
+
+  // Index by the shape of each member's own window, not by the cluster's shape.
+  // A merged candidate covers several original sequences and its cluster shape
+  // is the plan, not any one of them, so keying off the cluster would make a
+  // merged route unmatchable. That regression cost a held-out run.
   const byShape = new Map<string, RoutePlan>();
-  for (const c of routes) if (c.plan) byShape.set(c.cluster.shape.key, c.plan);
+  for (const c of routes) {
+    if (!c.plan) continue;
+    for (const m of c.cluster.members) {
+      byShape.set(shapeOf(m.episode.calls.slice(m.start, m.end)).key, c.plan);
+    }
+  }
 
   console.log(`train ${train.length} episodes, held out ${test.length}`);
   console.log(`routes mined on train: ${routes.length}\n`);
@@ -73,7 +83,9 @@ async function main(): Promise<void> {
     const window = ep.calls.slice(hit.start);
     // The plan no longer has a step for every call the caller made, so line the
     // surviving steps back up with the calls they came from.
-    const params = recoverParams(hit.plan, hit.plan.sourceSteps.map((i) => window[i]!.args));
+    const aligned = alignSteps(hit.plan, window);
+    if (!aligned) { unrecoverable++; failures.push(`${ep.goalId}: plan does not line up with the calls made`); continue; }
+    const params = recoverParams(hit.plan, aligned.map((i) => window[i]!.args));
     if (!params) { unrecoverable++; failures.push(`${ep.goalId}: params not recoverable`); continue; }
 
     try {

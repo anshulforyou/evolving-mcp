@@ -23,14 +23,25 @@ import type { Json, LabelledCall } from "../types.js";
 
 const ROOT = resolve(process.env["EMCP_TREE"] ?? "corpus/tree");
 const OUT = process.env["EMCP_CORPUS_FS"] ?? "corpus/traces-fs.jsonl";
+const SUBDIRS = ["src", "src/auth", "src/db", "tests", "config", "docs"];
+
+/**
+ * Exploration styles.
+ *
+ * `tree` takes one call to see everything, then checks the file before reading
+ * it. `walk` lists the root and then each subdirectory, six calls to assemble
+ * the same picture, and reads without checking.
+ *
+ * Different tools, different lengths, same information, and if the model lands
+ * on the same file both ways then the same outcome. That is the case the merge
+ * step exists for, and until now no corpus contained it.
+ */
+type Style = "tree" | "walk";
 
 interface FsGoal {
   id: string;
   paraphrases: string[];
-  /** How the caller explored before deciding. */
-  styles: Record<string, "tree" | "search">;
-  /** Only used for the search style. */
-  pattern?: string;
+  styles: Record<string, Style>;
 }
 
 const GOALS: FsGoal[] = [
@@ -45,8 +56,7 @@ const GOALS: FsGoal[] = [
       "Pull up the module responsible for identifying the requester.",
       "Read me whatever handles authentication state.",
       "Open the source file dealing with user sessions.",],
-    styles: { tree: "tree" },
-    pattern: "*.js",
+    styles: { tree: "tree", walk: "walk" },
   },
   {
     id: "read_db_pool",
@@ -59,8 +69,7 @@ const GOALS: FsGoal[] = [
       "Find the file responsible for database connectivity and show it.",
       "Which source file manages the shared db connection? Print it.",
       "Open whatever sets up our database client.",],
-    styles: { tree: "tree" },
-    pattern: "*.js",
+    styles: { tree: "tree", walk: "walk" },
   },
   {
     id: "read_prod_config",
@@ -73,8 +82,7 @@ const GOALS: FsGoal[] = [
       "Find the prod environment config and print it out.",
       "Which config applies to the live deployment? Show me.",
       "Open the production JSON config.",],
-    styles: { tree: "tree" },
-    pattern: "*.json",
+    styles: { tree: "tree", walk: "walk" },
   },
   {
     id: "read_orders_test",
@@ -87,8 +95,7 @@ const GOALS: FsGoal[] = [
       "Print the unit tests that cover the orders endpoint.",
       "Which file tests order behaviour? Open it.",
       "Read the orders test suite.",],
-    styles: { tree: "tree" },
-    pattern: "*.test.js",
+    styles: { tree: "tree", walk: "walk" },
   },
   {
     id: "read_deploy_doc",
@@ -101,8 +108,7 @@ const GOALS: FsGoal[] = [
       "Read the markdown file about deploying.",
       "Which doc covers rollout steps? Print it.",
       "Open the deployment guide.",],
-    styles: { tree: "tree" },
-    pattern: "*.md",
+    styles: { tree: "tree", walk: "walk" },
   },
 ];
 
@@ -145,18 +151,25 @@ async function main(): Promise<void> {
         };
 
         try {
-          const listing =
-            mode === "tree"
-              ? await emit("directory_tree", { path: ROOT })
-              : await emit("search_files", { path: ROOT, pattern: goal.pattern ?? "*" });
+          let listing: string;
+          if (mode === "tree") {
+            listing = (await emit("directory_tree", { path: ROOT })).raw;
+          } else {
+            const root = await emit("list_directory", { path: ROOT });
+            const parts = [root.raw];
+            for (const dir of SUBDIRS) {
+              parts.push(`${dir}/\n` + (await emit("list_directory", { path: resolve(ROOT, dir) })).raw);
+            }
+            listing = parts.join("\n");
+          }
 
           const picked = (
             await askToPickPath(
-              `Files available:\n${listing.raw.slice(0, 4000)}\n\nRequest: ${question}\n\nReply with the single absolute path that answers it.`,
+              `Files available:\n${listing.slice(0, 4000)}\n\nRequest: ${question}\n\nReply with the single absolute path that answers it.`,
             )
           ).trim();
           const path = picked.startsWith("/") ? picked : resolve(ROOT, picked);
-          await emit("get_file_info", { path });
+          if (mode === "tree") await emit("get_file_info", { path });
           await emit("read_text_file", { path });
 
           rows.push(...staged);
