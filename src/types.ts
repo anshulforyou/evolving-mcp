@@ -102,6 +102,12 @@ export interface ArgAnalysis {
   binding?: Binding;
   /** Why it landed in `unstable`, for the primitive-gap report. */
   note?: string;
+  /** Set when a `param` value was also found in an earlier result. Such a
+   *  param is not free: the caller can only supply it by making the discovery
+   *  call first, so exposing it forfeits the saving the route was meant to
+   *  produce. These are the entries that would be internalised by a
+   *  select-by-predicate primitive, and they are the primitive-gap list. */
+  discoveredIn?: number;
 }
 
 export interface Candidate {
@@ -116,18 +122,29 @@ export interface Candidate {
 export interface Score {
   /** Episodes backing this candidate. */
   support: number;
-  /** Result tokens that would never reach a model's context, per use. */
+  /** Result tokens that would never reach a model's context, per use, taking
+   *  discovered params into account. This is the number worth quoting. */
   intermediateTokensSaved: number;
+  /** The same figure ignoring discovered params, which is what a naive reading
+   *  of the chain suggests. Kept so the gap between the two is visible. */
+  rawIntermediateTokensSaved: number;
   /** Upstream calls collapsed into one, per use. */
   roundTripsSaved: number;
-  /** Measured upstream latency the caller no longer waits through serially. */
-  latencyMsSaved: number;
+  /** Upstream time the route still spends, since every underlying call still
+   *  runs. Recorded so no one mistakes round trips saved for time saved. The
+   *  real time saving is (roundTripsSaved x one model inference), which cannot
+   *  be measured without a model in the loop. */
+  upstreamLatencyMs: number;
   /** Tokens this route's schema adds to every tools/list, for every caller. */
   schemaTokenCost: number;
   /** Does the chain mutate state. */
   mutating: boolean;
   /** Did every member agree on every argument role. */
   stable: boolean;
+  /** How many tools/list fetches one use of this route pays for. Above 1 means
+   *  the route earns its place. Assumption-free: it needs no guess at traffic
+   *  volume, unlike an absolute net figure. */
+  payoffRatio: number;
 }
 
 /* ------------------------------------------------------------------ */
