@@ -152,3 +152,18 @@ export function readPath(value: Json, path: string): Json | undefined {
   }
   return cur;
 }
+
+/**
+ * Whether a result is really an error, regardless of what the flag says.
+ *
+ * The phase 1 corpus caught a model inventing a table that does not exist. The
+ * reference server answered `Database error: no such table: orders` and set
+ * `isError: false`, so the recorder banked it as a successful call. A route
+ * mined from a failing call is a route that reliably fails, so the flag alone
+ * cannot be trusted and the payload has to be looked at.
+ */
+export function looksLikeError(result: Json, flagged: boolean): boolean {
+  if (flagged) return true;
+  const raw = rawText(result).trimStart();
+  return /^(database error|error|traceback|exception)\b/i.test(raw);
+}

@@ -15,7 +15,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { StdioMcpClient } from "../mcp/client.js";
-import { normalize, type NormalizedResult } from "../detect/normalize.js";
+import { looksLikeError, normalize, type NormalizedResult } from "../detect/normalize.js";
 import { measure } from "../metrics/tokens.js";
 import { CALLERS, GOALS } from "./tasks.js";
 import type { LabelledCall } from "../types.js";
@@ -58,10 +58,11 @@ async function main(): Promise<void> {
             const norm = normalize(result);
             prior.push(norm);
             const { bytes, tokens } = measure(norm.raw);
-            const isError =
+            const flagged =
               typeof result === "object" && result !== null && !Array.isArray(result)
                 ? result["isError"] === true
                 : false;
+            const isError = looksLikeError(result, flagged);
             staged.push({
               traceId, seq: i, tsMs: Date.now(), caller,
               tool: step.tool, args, result, isError,

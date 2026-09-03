@@ -1,5 +1,7 @@
 # Phase 0 findings
 
+> **Superseded in part by [phase 1](findings-phase-1.md).** The 47.7% headline here was an artifact of the SQL being hand-written, exactly as the limitations section warned. With a real model writing the queries it falls to 0.6%. Do not quote the 47.7% figure. The design findings below all still hold.
+
 Run against the official `mcp-server-sqlite` reference server on 2026-09-03. Reproduce with `npm run seed && npm run record && npm run report && npm run verify && npm test`.
 
 ## Verdict

@@ -11,7 +11,8 @@
     "report": "tsx src/cli/report.ts",
     "test": "tsx --test test/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "verify": "tsx src/cli/verify.ts"
+    "verify": "tsx src/cli/verify.ts",
+    "record:llm": "tsx src/corpus/record-llm.ts"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
