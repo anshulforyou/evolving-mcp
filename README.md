@@ -11,7 +11,7 @@ Someone asks an agent to open the file that sets up the database connection. Aga
 ```
 directory_tree("/repo")                    568 tokens of listing come back
 get_file_info("/repo/src/db/pool.js")       92 tokens
-read_text_file("/repo/src/db/pool.js")      89 tokens   <- the answer
+read_text_file("/repo/src/db/pool.js")      89 tokens   the answer
 ```
 
 Three round trips, and 660 tokens of directory listing sit in the model's context forever, so that it could pick one path out of them.
@@ -66,11 +66,11 @@ So the claim is narrower and more useful than the one this started with:
 
 ## Routes are data, not generated code
 
-A route is a list of upstream calls with bindings, run by one small interpreter. Roughly a hundred lines, no `eval`, no code generation, no model anywhere in the execution path.
+A route is a list of upstream calls with bindings, run by one interpreter of about 130 lines. No `eval`, no code generation, no model anywhere in the execution path.
 
 That buys three things. A route cannot do anything the upstream server could not already do. The server's author can open it and read exactly what it will do. And it behaves identically every time, which is the only reason `npm test` can assert the exact set of routes the committed corpus produces, and the only reason to believe any number on this page.
 
-The alternative, having a model write each route as a function, means arbitrary generated code executing inside the server author's process, and no reproducible test. It is also [LATM](https://arxiv.org/abs/2305.17126), published in 2023.
+The alternative, having a model write each route as a function, means arbitrary generated code executing inside the server author's process, and no reproducible test. It is also [Large Language Models as Tool Makers](https://arxiv.org/abs/2305.17126), published in 2023.
 
 ## Run it
 
