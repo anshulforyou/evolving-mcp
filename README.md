@@ -49,7 +49,7 @@ server      who writes the arguments    eps routes  ep cov  suppressible  of tha
 ------------------------------------------------------------------------------------------
 sqlite      queries written by hand      64     12   87.5% 54.8% of 42,404           87.1%
 sqlite      queries written by a model   44      6   40.9%  4.9% of 330,112          40.4%
-filesystem  targets chosen by a model    70      5   97.1% 88.0% of 31,038           97.1%
+filesystem  targets chosen by a model   206     15   97.1% 89.3% of 91,130           98.5%
 ```
 
 Read the rows in order, because the middle one is the point.
@@ -93,7 +93,7 @@ Not a running server. No middleware, no SDK integration, no live promotion, on p
 
 Not a claim that independent callers converge on their own. The model picks targets and writes queries, which is the part that varies, but the exploration shapes were authored by hand.
 
-Not finished. The single most load-bearing number here, cross-path agreement, is four goals out of five.
+Not finished. Cross-path agreement, whether two callers exploring differently land in the same place, is 10 of 15. It read as 4 of 5 on a smaller corpus, and tripling the corpus is what showed that up as sampling noise. It is the weakest number here and it should not be quoted as a headline.
 
 ## What went wrong, which is most of what was learned
 
@@ -110,9 +110,10 @@ Two more came from held-out replay rather than from the test suite, which is the
 - [Phase 2](docs/findings-phase-2.md) fixed the denominator, normalized SQL aliases, and tested a discrete-argument server.
 - [Phase 3](docs/findings-phase-3.md) replaced lexical matching with a semantic footprint, scored against ground truth.
 - [Phase 4](docs/findings-phase-4.md) stopped routes performing exploration they no longer need.
+- [Phase 6](docs/findings-phase-6.md) tripled the corpus and watched the headline agreement number get worse.
 - [Phase 5](docs/findings-phase-5.md) built the corpus that measures the merge, on two real exploration paths.
 - [The original scope](docs/phase-0.md), including the falsifiers, written before any data existed.
 
 ## Next
 
-Projection and construct equivalence for SQL, which needs a parser rather than regexes. A larger discrete-argument corpus, because five goals is carrying more weight than it should. Normalizers registered per tool, since alias renaming is SQL knowledge and no universal rule exists. And eviction, which is not built and is what keeps a route surface from growing until its schema costs more than it saves.
+Projection and construct equivalence for SQL, which needs a parser rather than regexes. Normalizers registered per tool, since alias renaming is SQL knowledge and no universal rule exists. And eviction, which is not built and is what keeps a route surface from growing until its schema costs more than it saves.
