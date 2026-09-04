@@ -28,13 +28,11 @@ Same policy, same store, same executor. I recommend `propose` as the default, be
 
 ## Decision points
 
-### 1. Credentials must never be baked into a route (security)
+### 1. Credentials never enter a route (a guard, not a decision)
 
-This is the one I will not decide alone.
+Routes are mined from real traffic and real traffic carries authorization. A credential captured as a `const` binding would mean every later caller running a route with **someone else's authority**.
 
-Routes are mined from real traffic, and real traffic carries authorization. If a value that was part of somebody's credentials or tenancy is captured as a `const` binding, then every later caller runs a route carrying **someone else's authority**. That is a privilege escalation with our name on it.
-
-Two protections, and I think both are required.
+This is table stakes rather than a design choice, so it is stated as a rule the implementation must satisfy, not as a question. Two guards, both mandatory.
 
 **Execute with the calling caller's credentials, never the miner's.** The route makes upstream calls on behalf of whoever invoked it, so the upstream server applies its own authorization exactly as it would have. This is what makes the whole thing safe by default: we are not deciding who may do what, the server still is.
 
@@ -42,23 +40,19 @@ Two protections, and I think both are required.
 
 **Rejected: detecting secrets by pattern.** Entropy checks and key-shaped-string heuristics work until the day they do not, and the failure is silent and severe. The author names the fields.
 
-**Open, and I want your call:** should a route mined under one authorization context be offered to callers in another at all? The spec permits `tools/list` to vary by the authorization presented, which gives us a legal way to scope routes to the context they were learned in. That is safer and it weakens the cross-caller aggregation that is the point of the project. I lean toward scoping by default with an opt-out, but this trades directly against your thesis.
+**Decided: routes are global, not scoped per authorization context.** The spec would permit scoping, by letting `tools/list` vary with the authorization presented, and it would be marginally safer. It would also remove the cross-caller aggregation that is the entire point, so it is not the default.
 
-### 2. Eviction is a breaking change to a public surface
+The residual risk that leaves, stated rather than designed around: a route's **existence** reveals that somebody once did that thing. A route whose constant is a path or an identifier tells every caller that path or identifier exists, even though calling it still gets them nothing they were not authorized for, because execution uses their own credentials. Authors on a multi-tenant server should mark tenant identifiers sensitive, which stops them being folded and therefore stops them being disclosed.
 
-I have been describing eviction as the thing that keeps the net positive. It is also a removal from an interface other people are using.
+### 2. No eviction in this version, which forces two other things
 
-A caller that learned to use `reply_to_newest_issue` and finds it gone gets an error. Clients cache `tools/list`, so they may not even know it went. This is worse in `live` mode, where the route appeared without anybody deciding it should.
+Eviction is out of scope here. That is a deliberate cut and it decides two things that follow from it.
 
-Proposed: **a route is never removed outright.** It is retired into a tombstone that still answers, returning a tool execution error saying it was withdrawn and what to call instead. Tombstones cost a little schema and are dropped once nothing has called them for a long time.
+**`propose` becomes the only supported default.** Without eviction there is no mechanism to withdraw a route that begins failing, and pruned routes do bake in a picture of the world that can go stale: a schema, a path, a set of table names. In `propose` mode that is not a problem, because the route lives in a file the author reviewed and committed, and removing it is a revert like any other broken tool. `live` mode without eviction would leave a failing route failing for everyone with no way out, so it stays gated behind an explicit opt-in and a warning until eviction exists.
 
-**Rejected: silent removal.** Cheapest, and it makes the surface unreliable in a way that is invisible until somebody's agent breaks.
+**Promotion needs a ceiling instead.** A surface that only grows costs more schema on every request forever. So the store holds at most `maxRoutes`, and a new candidate has to beat the weakest incumbent on payoff to displace it. That bounds the cost without any withdrawal machinery, and displacing a route that was never served is not a breaking change.
 
-### 3. A failing route is demoted immediately
-
-Pruning bakes in a picture of the world: a schema, a path, a set of table names. When the world moves, a pruned route fails. Nothing re-checks it.
-
-So error rate is a first-class eviction trigger, and it is fast: a route that fails more than a small number of times in a row is withdrawn without waiting for any decay window. This is the safety net that makes pruning acceptable at all, and it is the reason pruning cannot ship without eviction.
+**Deferred, and worth remembering when eviction is built:** removing a route is a breaking change to a public interface. A caller that learned one and finds it gone simply fails, and clients cache `tools/list` so they may not see it go. When this is built it should tombstone rather than delete, leaving something that answers with an explanation.
 
 ### 4. The route store is a file, not a database
 
@@ -74,6 +68,8 @@ Proposed: advertise a short ttl while the surface is still changing and a long o
 
 ## What this does not do
 
+Eviction. A route, once promoted, stays until the author removes it from the store.
+
 Streamable HTTP. The proxy is stdio, which covers most servers people run today and none of the hosted ones. A hosted Slack-shaped server needs HTTP and that is a materially larger surface: header handling, no sessions, concurrency. Named as a limit rather than smuggled in.
 
 Cross-instance aggregation. One deployed proxy learns from its own traffic. Several instances behind a load balancer each learn separately unless they share a store, and sharing a store across instances is a distributed systems problem this design does not solve yet.
@@ -82,8 +78,8 @@ Cross-instance aggregation. One deployed proxy learns from its own traffic. Seve
 
 - A route added at runtime appears in `tools/list` and is callable, and the upstream server never sees a request it did not already understand.
 - Promotion in `propose` mode changes the store and never the served surface.
-- A route whose upstream calls start failing is withdrawn, and the withdrawal is visible in the store.
-- A tombstoned route answers with an error rather than vanishing.
-- An argument marked sensitive is never constant-folded, and a cluster that depends on folding one is rejected.
+- The store never exceeds `maxRoutes`, and a stronger candidate displaces the weakest incumbent rather than being dropped.
+- An argument marked sensitive is never constant-folded, never appears in a template literal, and a cluster that depends on folding one is rejected rather than promoted.
+- A route executes with the credentials of whoever called it, never those captured during mining.
 - Everything the recording proxy already guarantees, still guaranteed once it is also serving routes: byte-identical passthrough for everything that is not a promoted route.
 - End to end against a server this repo was not built for, as before.
