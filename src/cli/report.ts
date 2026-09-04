@@ -1,146 +1,137 @@
 /**
- * Phase 0 report. Everything here is computed, nothing is asserted by hand.
+ * What your traffic says about your server.
+ *
+ * Written for somebody who pointed this at a server we have never seen, so it
+ * leads with what they can act on: which call sequences recur, what collapsing
+ * them would save, and what is still blocking. The research-corpus numbers
+ * only appear when the trace carries the ground-truth labels our own corpora
+ * have, because "distinct goals" means nothing on real traffic.
+ *
+ * Nothing here is installed into anybody's server. This is a measurement.
  */
 import { detect, loadCalls, optionsFor, segment } from "../detect/index.js";
-import { loadConfig } from "../config/load.js";
 import { select } from "../detect/select.js";
+import { loadConfig } from "../config/load.js";
+import { unclassifiedTools } from "../config/schema.js";
 import { normalize } from "../detect/normalize.js";
 import type { Candidate } from "../types.js";
 
 const CORPUS = process.env["EMCP_CORPUS"] ?? "corpus/traces.jsonl";
 const n = (x: number): string => x.toLocaleString("en-US");
+const pct = (a: number, b: number): string => `${((a / Math.max(1, b)) * 100).toFixed(1)}%`;
 
 const config = loadConfig();
 const calls = loadCalls(CORPUS);
 const episodes = segment(calls);
 const candidates = detect(episodes, optionsFor(config));
-
-const promotable = candidates.filter((c) => c.plan);
+const chosen = select(candidates);
 const blocked = candidates.filter((c) => !c.plan);
-const worthIt = promotable.filter((c) => c.score.payoffRatio > 1 && c.score.intermediateTokensSaved > 0);
 
-/* ---------------- corpus ---------------- */
-const norms = calls.map((c) => normalize(c.result).normalizer);
-const normCount = new Map<string, number>();
-for (const nm of norms) normCount.set(nm, (normCount.get(nm) ?? 0) + 1);
 const totalResultTokens = calls.reduce((a, c) => a + c.resultTokens, 0);
-
 // A route returns its last call's result, so that payload reaches the caller
-// either way and was never available to suppress. Measuring against every
-// result token understates the work by counting an unreachable denominator.
-// On this server the final read_query dominates, so the two differ a lot.
-const suppressibleTokens = episodes.reduce(
+// either way and was never available to suppress.
+const suppressible = episodes.reduce(
   (a, ep) => a + ep.calls.slice(0, -1).reduce((x, c) => x + c.resultTokens, 0),
   0,
 );
+const saved = chosen.reduce((a, s) => a + s.incrementalTokens, 0);
+const schema = chosen.reduce((a, s) => a + s.candidate.score.schemaTokenCost, 0);
+const prunedCalls = chosen.reduce((a, s) => a + s.candidate.score.upstreamCallsPruned * s.candidate.score.support, 0);
+const covered = new Set<string>();
+for (const s of chosen) for (const m of s.candidate.cluster.members) covered.add(m.episode.traceId);
 
-/* ---------------- selection and coverage ---------------- */
-const chosen = select(candidates);
-const promotedTraces = new Set<string>();
-for (const s of chosen) for (const m of s.candidate.cluster.members) promotedTraces.add(m.episode.traceId);
-const absorbedCalls = chosen.reduce((a, s) => a + s.incrementalCalls, 0);
-const uniqueNames = new Set(promotable.map((c) => c.plan!.name));
+const boundaries = new Map<string, number>();
+for (const c of calls as Array<{ boundary?: string }>) {
+  const b = c.boundary ?? "unknown";
+  boundaries.set(b, (boundaries.get(b) ?? 0) + 1);
+}
+const structured = calls.filter((c) => normalize(c.result).normalizer === "structured").length;
 
-console.log(`# evolving-mcp phase 0
+console.log(`# What your traffic says about your server
 
-## Corpus
+## Recorded
   episodes                 ${n(episodes.length)}
   calls                    ${n(calls.length)}
+  distinct tools used      ${new Set(calls.map((c) => c.tool)).size}
   distinct callers         ${new Set(calls.map((c) => c.caller)).size}
-  distinct goals           ${new Set(calls.map((c) => c.goalId)).size}
-  result tokens total      ${n(totalResultTokens)}
-  of which suppressible    ${n(suppressibleTokens)}  (${((suppressibleTokens / totalResultTokens) * 100).toFixed(0)}%, the rest is the answer the caller keeps)
-  mean tokens per episode  ${n(Math.round(totalResultTokens / episodes.length))}
-  normalizer used          ${[...normCount].map(([k, v]) => `${k}=${v}`).join(", ")}
+  result tokens seen       ${n(totalResultTokens)}
+  of which suppressible    ${n(suppressible)}  (${pct(suppressible, totalResultTokens)}; the rest is the answer the caller keeps)
+  episode boundaries from  ${[...boundaries].map(([k, v]) => `${k}=${v}`).join(", ")}
+  structured results       ${structured} of ${calls.length}${structured === 0 ? "  (dataflow had to be read out of text blobs)" : ""}`);
 
-Note: no call in this corpus carried structuredContent. Every derivation had to
-run over a reconstruction of a Python repr in a text block, which is what real
-servers emit today.
+/* ---------------- configuration ---------------- */
+console.log(`\n## Configuration`);
+if (!config) {
+  console.log(`  No config found. Every tool is therefore treated as mutating, which means
+  no route will skip any call, and most of the saving is unavailable.
 
-## Detection
-  clusters at support>=3   ${n(candidates.length)}
-  plans built (recipe)     ${n(promotable.length)}
-  blocked, no plan         ${n(blocked.length)}
-  net-positive routes      ${n(worthIt.length)}
-  upstream calls pruned    ${n(chosen.reduce((a, s) => a + s.candidate.score.upstreamCallsPruned * s.candidate.score.support, 0))} across the corpus (calls a route never makes)
-  routes actually selected ${n(chosen.length)}   (non-overlapping, greedy)
-  route names unique       ${uniqueNames.size === promotable.length ? "yes" : `NO (${promotable.length - uniqueNames.size} collisions)`}
-
-  episodes with a route    ${n(promotedTraces.size)} of ${n(episodes.length)}  (${((promotedTraces.size / episodes.length) * 100).toFixed(0)}%)
-  calls a route absorbs    ${n(absorbedCalls)} of ${n(calls.length)}  (${((absorbedCalls / calls.length) * 100).toFixed(0)}%)
-
-Straight-line fraction is deliberately NOT reported. Once canonicalization
-includes a string skeleton, cluster members share token structure by
-construction, so templating cannot fail and the number would be 100% whatever
-the data said. Episode and call coverage are reported instead, because those
-still measure something.`);
+  Run \`evolving-mcp init -- <your server command>\` to generate one.`);
+} else {
+  const todo = unclassifiedTools(config);
+  const known = Object.keys(config.tools).length;
+  const unseen = [...new Set(calls.map((c) => c.tool))].filter((t) => !config.tools[t]).sort();
+  console.log(`  ${known} tools configured, ${known - todo.length} classified`);
+  if (todo.length) {
+    console.log(`\n  ${todo.length} unclassified, so no route will skip them:`);
+    for (const t of todo) console.log(`    ${t}`);
+  }
+  if (unseen.length) {
+    console.log(`\n  ${unseen.length} tools appear in the trace but not in the config. Re-run \`init\`:`);
+    for (const t of unseen) console.log(`    ${t}`);
+  }
+}
 
 /* ---------------- routes ---------------- */
-const row = (c: Candidate): string => {
-  const s = c.score;
-  const params = c.plan ? Object.keys((c.plan.inputSchema["properties"] ?? {}) as object) : [];
-  return [
-    `  ${c.plan!.name}`,
-    `      support ${s.support}  saves ${n(s.intermediateTokensSaved)} tok/use  (raw ${n(s.rawIntermediateTokensSaved)})`,
-    `      schema cost ${n(s.schemaTokenCost)} tok  payoff x${s.payoffRatio}  round trips saved ${s.roundTripsSaved}`,
-    `      params [${params.join(", ") || "none"}]${s.mutating ? "  MUTATING" : ""}`,
-  ].join("\n");
-};
+console.log(`\n## Routes your traffic would produce (${chosen.length})\n`);
+if (!chosen.length) {
+  console.log(`  None yet.`);
+  const opts = optionsFor(config);
+  if (episodes.length < opts.minSupport) {
+    console.log(`
+  Only ${episodes.length} episode${episodes.length === 1 ? " was" : "s were"} recorded, and a sequence has to recur
+  ${opts.minSupport} times before it is worth promoting. Record more traffic.
 
-console.log(`\n## Routes worth promoting (payoff > 1)\n`);
-if (!worthIt.length) console.log("  none");
-for (const c of worthIt.slice(0, 12)) console.log(row(c) + "\n");
-
-const deadWeight = promotable.filter((c) => !worthIt.includes(c));
-console.log(`## Plans built but not worth promoting (${deadWeight.length})\n`);
-for (const c of deadWeight.slice(0, 8)) {
-  const d = c.analyses.filter((a) => a.discoveredIn !== undefined);
-  console.log(
-    `  ${c.plan!.name}\n      saves ${n(c.score.intermediateTokensSaved)} of ${n(c.score.rawIntermediateTokensSaved)} raw, payoff x${c.score.payoffRatio}` +
-      (d.length ? `\n      discovered params: ${d.map((a) => `${a.argPath}@step${a.discoveredIn}`).join(", ")}` : ""),
-  );
+  Episodes are split by trace context when your client sends one, and otherwise
+  by a gap in time. A script firing calls back to back looks like one long
+  episode, which is why an automated run often produces exactly one.`);
+  } else if (blocked.length) {
+    console.log(`\n  ${blocked.length} sequence${blocked.length === 1 ? "" : "s"} recurred but could not be turned into a route. See below.`);
+  }
+} else {
+  for (const s of chosen) {
+    const p = s.candidate.plan!;
+    const params = Object.keys((p.inputSchema["properties"] ?? {}) as object);
+    console.log(`  ${p.name}`);
+    console.log(`      seen in ${s.candidate.score.support} episodes, replaces ${s.candidate.score.support ? p.steps.length + s.candidate.score.upstreamCallsPruned : 0} calls with ${p.steps.length}`);
+    console.log(`      keeps ${n(s.incrementalTokens)} tokens out of context, costs ${n(s.candidate.score.schemaTokenCost)} in tool schema`);
+    console.log(`      inputs: ${params.length ? params.join(", ") : "none"}${s.candidate.score.mutating ? "   CONTAINS A MUTATING OR UNCLASSIFIED CALL" : ""}`);
+    console.log("");
+  }
 }
-
-/* ---------------- primitive gap ---------------- */
-console.log(`\n## Primitive gap`);
-const gapNotes = candidates
-  .flatMap((c) => c.analyses)
-  .filter((a) => a.discoveredIn !== undefined || a.role === "unstable")
-  .map((a) => a.note ?? "unstable")
-  .filter(Boolean);
-const gapTally = new Map<string, number>();
-for (const g of gapNotes) {
-  const key = g.replace(/step \d+/g, "step N").replace(/hole \d+/g, "hole N");
-  gapTally.set(key, (gapTally.get(key) ?? 0) + 1);
-}
-if (!gapTally.size) console.log("  none");
-for (const [k, v] of [...gapTally].sort((a, b) => b[1] - a[1])) console.log(`  x${v}  ${k}`);
 
 /* ---------------- blocked ---------------- */
-console.log(`\n## Blocked clusters (${blocked.length})`);
-for (const c of blocked.slice(0, 6)) {
-  console.log(`  ${c.cluster.shape.tools.join(" > ")}  (support ${c.score.support})\n      ${c.blockedBy}`);
-}
-
-/* ---------------- selected set ---------------- */
-console.log(`\n## The set a server would actually promote (${chosen.length})\n`);
-for (const s of chosen) {
-  const p = s.candidate.plan!;
-  console.log(
-    `  ${p.name}\n` +
-      `      suppresses ${n(s.incrementalTokens)} tok across ${n(s.incrementalCalls)} calls, schema ${n(s.candidate.score.schemaTokenCost)} tok\n` +
-      `      runs ${p.steps.length} upstream call(s), skipping ${s.candidate.score.upstreamCallsPruned} it never needed to make`,
-  );
+if (blocked.length) {
+  console.log(`## Recurring sequences that could not become routes (${blocked.length})\n`);
+  for (const c of blocked.slice(0, 8)) {
+    console.log(`  ${c.cluster.shape.tools.join(" > ")}  (${c.score.support} episodes)`);
+    console.log(`      ${c.blockedBy}\n`);
+  }
 }
 
 /* ---------------- totals ---------------- */
-const totalSaved = chosen.reduce((a, s) => a + s.incrementalTokens, 0);
-const totalSchema = chosen.reduce((a, s) => a + s.candidate.score.schemaTokenCost, 0);
-console.log(`\n## Totals over this corpus, counted once
-  result tokens recorded                          ${n(totalResultTokens)}
-  of which a route could ever suppress            ${n(suppressibleTokens)}
-  tokens the selected routes keep out of context  ${n(totalSaved)}
-  share of suppressible tokens (the real figure)  ${((totalSaved / Math.max(1, suppressibleTokens)) * 100).toFixed(1)}%
-  share of all result tokens                      ${((totalSaved / totalResultTokens) * 100).toFixed(1)}%
-  schema tokens added to every tools/list         ${n(totalSchema)}
-  one full corpus pass pays the schema back       ${totalSchema > 0 ? (totalSaved / totalSchema).toFixed(1) : "n/a"}x`);
+console.log(`\n## If you promoted all of them
+  episodes with a route                 ${n(covered.size)} of ${n(episodes.length)}  (${pct(covered.size, episodes.length)})
+  tokens kept out of context            ${n(saved)}
+  share of what was ever suppressible   ${pct(saved, suppressible)}
+  upstream calls never made             ${n(prunedCalls)}
+  tool schema added to every tools/list  ${n(schema)}${schema > 0 ? `\n  paid back after                       ${(saved / schema).toFixed(1)} passes over this traffic` : ""}`);
+
+/* ---------------- research corpora only ---------------- */
+const labelled = episodes.filter((e) => e.goalId).length;
+if (labelled) {
+  const goals = new Set(episodes.map((e) => e.goalId).filter(Boolean));
+  const impure = candidates.filter((c) => new Set(c.cluster.members.map((m) => m.episode.goalId)).size > 1).length;
+  console.log(`\n## Ground truth (this trace carries goal labels)
+  distinct goals                 ${goals.size}
+  clusters spanning >1 goal      ${impure}   (0 means nothing merged two different intents)`);
+}

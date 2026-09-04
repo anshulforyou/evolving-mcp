@@ -13,6 +13,10 @@ export interface ToolDef {
   name: string;
   description?: string;
   inputSchema: Record<string, Json>;
+  /** MCP tool annotations. `readOnlyHint` is the one that matters here: when a
+   *  server declares it, `init` can classify the tool without asking. Almost
+   *  no server sets it, which is why the default has to be refusal. */
+  annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } & Record<string, Json>;
 }
 
 interface Pending {

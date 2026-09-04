@@ -36,12 +36,24 @@
     "seed:fs": "tsx src/corpus/seed-fs.ts",
     "record:fs": "tsx src/corpus/record-fs.ts",
     "compare": "tsx src/cli/compare.ts",
-    "footprint": "tsx src/cli/footprint.ts"
+    "footprint": "tsx src/cli/footprint.ts",
+    "init": "tsx src/cli/main.ts init",
+    "trace": "tsx src/cli/main.ts trace"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
     "gpt-tokenizer": "^4.0.0",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2"
-  }
+  },
+  "bin": {
+    "evolving-mcp": "./bin/evolving-mcp.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ]
 }
