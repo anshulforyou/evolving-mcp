@@ -2,14 +2,15 @@
  * One table across every corpus, because the whole argument of this repo is a
  * comparison rather than a single number.
  */
-import { detect, loadCalls, segment } from "../detect/index.js";
+import { detect, loadCalls, optionsFor, segment } from "../detect/index.js";
+import { loadConfig } from "../config/load.js";
 import { select } from "../detect/select.js";
 import { schemaTokenCost } from "../metrics/tokens.js";
 
-const CORPORA: Array<{ label: string; path: string; who: string }> = [
-  { label: "sqlite", path: "corpus/traces.jsonl", who: "queries written by hand" },
-  { label: "sqlite", path: "corpus/traces-llm.jsonl", who: "queries written by a model" },
-  { label: "filesystem", path: "corpus/traces-fs.jsonl", who: "targets chosen by a model" },
+const CORPORA: Array<{ label: string; path: string; who: string; config: string }> = [
+  { label: "sqlite", path: "corpus/traces.jsonl", who: "queries written by hand", config: "corpus/config.sqlite.json" },
+  { label: "sqlite", path: "corpus/traces-llm.jsonl", who: "queries written by a model", config: "corpus/config.sqlite.json" },
+  { label: "filesystem", path: "corpus/traces-fs.jsonl", who: "targets chosen by a model", config: "corpus/config.fs.json" },
 ];
 
 const pct = (a: number, b: number): string => `${((a / Math.max(1, b)) * 100).toFixed(1)}%`;
@@ -21,9 +22,10 @@ console.log(
 console.log("-".repeat(90));
 
 for (const c of CORPORA) {
+  const config = loadConfig(c.config);
   const episodes = segment(loadCalls(c.path));
   const calls = episodes.flatMap((e) => e.calls);
-  const chosen = select(detect(episodes));
+  const chosen = select(detect(episodes, optionsFor(config)));
 
   const total = calls.reduce((a, x) => a + x.resultTokens, 0);
   const suppressible = episodes.reduce(

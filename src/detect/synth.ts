@@ -13,6 +13,7 @@
  */
 import { createHash } from "node:crypto";
 import { prune } from "./prune.js";
+import type { Config } from "../config/schema.js";
 import { isBinding, type ArgAnalysis, type Binding, type BindingTree, type Cluster, type Json, type JsonSchema, type PlanStep, type RoutePlan } from "../types.js";
 
 const MAX_NAME = 128;
@@ -88,7 +89,7 @@ export interface Synthesized {
   blockedBy?: string;
 }
 
-export function synthesize(cluster: Cluster, analyses: ArgAnalysis[]): Synthesized {
+export function synthesize(cluster: Cluster, analyses: ArgAnalysis[], config?: Config): Synthesized {
   const unstable = analyses.filter((a) => a.role === "unstable");
   if (unstable.length) {
     return {
@@ -117,7 +118,7 @@ export function synthesize(cluster: Cluster, analyses: ArgAnalysis[]): Synthesiz
 
   // Exploration calls whose results nothing reads are dropped here, which is
   // what lets two episodes that explored differently reach the same route.
-  const pruned = prune(steps, steps.length - 1);
+  const pruned = prune(steps, steps.length - 1, config);
 
   // Pruning can leave a route that is the upstream tool wearing a hat. If one
   // step survives and every argument of it is a free parameter, the caller

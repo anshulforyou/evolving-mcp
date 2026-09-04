@@ -22,12 +22,14 @@
  * more support, meaning it recurs somewhere the longer one does not.
  */
 import { shapeOf } from "./canon.js";
+import type { Config } from "../config/schema.js";
 import type { Cluster, Episode } from "../types.js";
 
 export interface MineOptions {
   minSupport: number;
   minLength: number;
   maxLength: number;
+  config?: Config;
 }
 
 export const DEFAULTS: MineOptions = { minSupport: 3, minLength: 2, maxLength: 8 };
@@ -41,7 +43,7 @@ export function mine(episodes: Episode[], opts: MineOptions = DEFAULTS): Cluster
       {
         const start = n - len; // suffix windows only, see the note above
         const window = ep.calls.slice(start, start + len);
-        const shape = shapeOf(window);
+        const shape = shapeOf(window, opts.config);
         let cluster = byKey.get(shape.key);
         if (!cluster) {
           cluster = { shape, members: [] };

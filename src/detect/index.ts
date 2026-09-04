@@ -3,6 +3,7 @@ import { mine, DEFAULTS, type MineOptions } from "./mine.js";
 import { analyze, resetParamNames } from "./dataflow.js";
 import { synthesize } from "./synth.js";
 import { score } from "./score.js";
+import type { Config } from "../config/schema.js";
 import type { Candidate, Cluster, Episode } from "../types.js";
 
 /**
@@ -30,13 +31,13 @@ export function detect(episodes: Episode[], opts: MineOptions = DEFAULTS): Candi
   const raw: Candidate[] = [];
   for (const cluster of clusters) {
     const analyses = analyze(cluster);
-    const { plan, blockedBy } = synthesize(cluster, analyses);
+    const { plan, blockedBy } = synthesize(cluster, analyses, opts.config);
     raw.push({
       cluster,
       analyses,
       ...(plan ? { plan } : {}),
       ...(blockedBy ? { blockedBy } : {}),
-      score: score(cluster, analyses, plan),
+      score: score(cluster, analyses, plan, opts.config),
     });
   }
 
@@ -99,6 +100,17 @@ function mergeIdenticalPlans(candidates: Candidate[], opts: MineOptions): Candid
   return [...merged, ...passthrough].filter(
     (c) => c.cluster.members.length >= opts.minSupport || !c.plan,
   );
+}
+
+/** Mining options for a config, so every entry point builds them the same way. */
+export function optionsFor(config?: Config): MineOptions {
+  const m = config?.mining ?? {};
+  return {
+    minSupport: m.minSupport ?? DEFAULTS.minSupport,
+    minLength: m.minLength ?? DEFAULTS.minLength,
+    maxLength: m.maxLength ?? DEFAULTS.maxLength,
+    ...(config ? { config } : {}),
+  };
 }
 
 export { loadCalls, segment, mine, analyze, synthesize, score, DEFAULTS };

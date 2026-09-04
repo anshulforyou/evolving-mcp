@@ -12,7 +12,8 @@
  */
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
-import { detect, loadCalls, segment } from "../detect/index.js";
+import { detect, loadCalls, optionsFor, segment } from "../detect/index.js";
+import { loadConfig } from "../config/load.js";
 import { select } from "../detect/select.js";
 import { shapeOf } from "../detect/canon.js";
 import { normalize } from "../detect/normalize.js";
@@ -44,9 +45,10 @@ function split(episodes: Episode[]): { train: Episode[]; test: Episode[] } {
 const eq = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 async function main(): Promise<void> {
-  const episodes = segment(loadCalls(CORPUS));
+  const config = loadConfig();
+const episodes = segment(loadCalls(CORPUS));
   const { train, test } = split(episodes);
-  const routes = select(detect(train)).map((s) => s.candidate);
+  const routes = select(detect(train, optionsFor(config))).map((s) => s.candidate);
 
   // Index by the shape of each member's own window, not by the cluster's shape.
   // A merged candidate covers several original sequences and its cluster shape
@@ -56,7 +58,7 @@ async function main(): Promise<void> {
   for (const c of routes) {
     if (!c.plan) continue;
     for (const m of c.cluster.members) {
-      byShape.set(shapeOf(m.episode.calls.slice(m.start, m.end)).key, c.plan);
+      byShape.set(shapeOf(m.episode.calls.slice(m.start, m.end), config).key, c.plan);
     }
   }
 
@@ -82,7 +84,7 @@ async function main(): Promise<void> {
     // suffix first.
     let hit: { plan: RoutePlan; start: number } | undefined;
     for (let start = 0; start < ep.calls.length; start++) {
-      const plan = byShape.get(shapeOf(ep.calls.slice(start)).key);
+      const plan = byShape.get(shapeOf(ep.calls.slice(start), config).key);
       if (plan) { hit = { plan, start }; break; }
     }
     if (!hit) continue;

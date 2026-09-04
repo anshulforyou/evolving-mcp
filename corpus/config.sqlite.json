@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "server": {
+    "command": "uvx",
+    "args": ["--quiet", "--from", "mcp-server-sqlite", "--with", "mcp==1.9.4", "mcp-server-sqlite", "--db-path", "corpus/store.db"]
+  },
+  "tools": {
+    "list_tables": { "mutability": "read-only", "source": "author" },
+    "describe_table": { "mutability": "read-only", "source": "author" },
+    "read_query": {
+      "mutability": "read-only",
+      "source": "author",
+      "normalizers": { "$.query": "sql" }
+    },
+    "write_query": { "mutability": "mutating", "source": "author" },
+    "create_table": { "mutability": "mutating", "source": "author" },
+    "append_insight": { "mutability": "mutating", "source": "author" }
+  }
+}

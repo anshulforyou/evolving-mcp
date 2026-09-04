@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "server": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem", "corpus/tree"]
+  },
+  "tools": {
+    "read_file": { "mutability": "read-only", "source": "author" },
+    "read_text_file": { "mutability": "read-only", "source": "author" },
+    "read_media_file": { "mutability": "read-only", "source": "author" },
+    "read_multiple_files": { "mutability": "read-only", "source": "author" },
+    "list_directory": { "mutability": "read-only", "source": "author" },
+    "list_directory_with_sizes": { "mutability": "read-only", "source": "author" },
+    "directory_tree": { "mutability": "read-only", "source": "author" },
+    "search_files": { "mutability": "read-only", "source": "author" },
+    "get_file_info": { "mutability": "read-only", "source": "author" },
+    "list_allowed_directories": { "mutability": "read-only", "source": "author" },
+    "write_file": { "mutability": "mutating", "source": "author" },
+    "edit_file": { "mutability": "mutating", "source": "author" },
+    "create_directory": { "mutability": "mutating", "source": "author" },
+    "move_file": { "mutability": "mutating", "source": "author" }
+  }
+}

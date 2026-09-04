@@ -17,16 +17,12 @@
  * regardless and cannot be counted as saved.
  */
 import { schemaTokenCost } from "../metrics/tokens.js";
+import { isMutating, type Config } from "../config/schema.js";
 import type { ArgAnalysis, Cluster, RoutePlan, Score } from "../types.js";
-
-/** Tools that change state. MCP has annotations for this but the reference
- *  server predates them, so the set is named explicitly rather than guessed
- *  from the tool name. */
-const MUTATING = new Set(["write_query", "create_table", "append_insight"]);
 
 const mean = (xs: number[]): number => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 
-export function score(cluster: Cluster, analyses: ArgAnalysis[], plan?: RoutePlan): Score {
+export function score(cluster: Cluster, analyses: ArgAnalysis[], plan?: RoutePlan, config?: Config): Score {
   // Windows are suffixes, so the call the caller was waiting for is always the
   // last one in the window. Computing per member rather than from the cluster
   // shape is what lets a merged cluster hold members whose episodes explored
@@ -74,7 +70,7 @@ export function score(cluster: Cluster, analyses: ArgAnalysis[], plan?: RoutePla
     roundTripsSaved: Math.max(0, Math.round(meanLen) - 1 - effectiveStart),
     upstreamLatencyMs: Math.round(mean(perMember.map((p) => p.latency))),
     schemaTokenCost: cost,
-    mutating: cluster.shape.tools.some((t) => MUTATING.has(t)),
+    mutating: cluster.shape.tools.some((t) => isMutating(config, t)),
     stable: analyses.every((a) => a.role !== "unstable"),
     payoffRatio: cost > 0 ? Math.round((effective / cost) * 100) / 100 : 0,
   };

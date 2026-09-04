@@ -32,12 +32,24 @@
  * a working route into a failing one, which is what error-driven eviction is
  * for.
  */
+import { isMutating } from "../config/schema.js";
+import type { Config } from "../config/schema.js";
 import { isBinding, type Binding, type BindingTree, type PlanStep } from "../types.js";
 
-/** Tools that change state and must never be skipped. */
-const MUTATING = new Set(["write_query", "create_table", "append_insight", "write_file", "edit_file", "move_file", "create_directory"]);
-
-export const isMutating = (tool: string): boolean => MUTATING.has(tool);
+/**
+ * Whether a call is safe to skip.
+ *
+ * This used to be a hardcoded list here and a DIFFERENT hardcoded list in
+ * score.ts, seven entries against three, so a route containing `write_file`
+ * was pruned correctly and then reported as non-mutating. One source now, and
+ * it is the author's config, because no list we ship can know the tool names
+ * on a server we have never seen.
+ *
+ * With no config, every tool is treated as mutating and nothing is pruned.
+ * That is the intended failure mode: refusing to skip is safe, guessing is
+ * not.
+ */
+export { isMutating } from "../config/schema.js";
 
 /** Every step index some binding in this tree reads from. */
 function readsFrom(tree: BindingTree, into: Set<number>): void {
@@ -69,14 +81,14 @@ export interface Pruned {
  * the new indices. Runs to a fixed point, because removing a step can make the
  * step it used to read from unreferenced in turn.
  */
-export function prune(steps: PlanStep[], returns: number): Pruned {
+export function prune(steps: PlanStep[], returns: number, config?: Config): Pruned {
   let keep = steps.map((_, i) => i);
 
   for (;;) {
     const referenced = new Set<number>();
     for (const i of keep) readsFrom(steps[i]!.args, referenced);
     const next = keep.filter(
-      (i) => i === returns || referenced.has(i) || isMutating(steps[i]!.call),
+      (i) => i === returns || referenced.has(i) || isMutating(config, steps[i]!.call),
     );
     if (next.length === keep.length) break;
     keep = next;

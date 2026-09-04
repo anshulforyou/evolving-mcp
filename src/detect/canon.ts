@@ -20,7 +20,8 @@
  */
 import { tokenize } from "./dataflow.js";
 import { canonicalizeAliases } from "./sql.js";
-import { footprintKey } from "./footprint.js";
+import { resolveNormalizer, resultShape } from "./normalizers.js";
+import { normalizerFor, type Config } from "../config/schema.js";
 import type { Json, RecordedCall, Shape } from "../types.js";
 
 /** Sorted argument paths of one call, so key order cannot affect the shape. */
@@ -54,7 +55,12 @@ export function isComposed(s: string): boolean {
  *  Language-aware normalization runs first, so that two strings which differ
  *  only in what they named things reach the same skeleton. */
 export function skeleton(s: string, opts: { aliases?: boolean } = {}): string {
-  const src = opts.aliases === false ? s : canonicalizeAliases(s);
+  // SQL alias renaming is NOT applied by default any more. It used to fire on
+  // anything starting with SELECT, which is fine inside this repo and wrong as
+  // a public contract: a tool whose argument happens to begin with that word
+  // would get rewritten by rules that do not apply to it. It is now reachable
+  // only by declaring the `sql` normalizer on a specific argument.
+  const src = opts.aliases === true ? canonicalizeAliases(s) : s;
   return tokenize(src)
     .map((t) => {
       if (/^'/.test(t)) return "'?'";
@@ -67,7 +73,11 @@ export function skeleton(s: string, opts: { aliases?: boolean } = {}): string {
 }
 
 /** Structural signature of one call's arguments, values masked. */
-export function argSignature(args: Json, prefix = "$"): string[] {
+export function argSignature(
+  args: Json,
+  prefix = "$",
+  ctx?: { tool: string; config?: Config; onUndeclaredComposed?: () => void },
+): string[] {
   const out: string[] = [];
   const walk = (v: Json, p: string): void => {
     if (v !== null && typeof v === "object") {
@@ -97,19 +107,68 @@ export function argSignature(args: Json, prefix = "$"): string[] {
     // what a model varies freely between askings. The lexical skeleton is the
     // fallback for composed strings nothing understands yet.
     if (typeof v === "string" && isComposed(v)) {
-      const fp = FOOTPRINTS ? footprintKey(v, "loose") : null;
-      out.push(`${p}=${fp ?? skeleton(v)}`);
+      // Tier 2 and 3: the author said how to read this argument.
+      const declared = ctx ? normalizerFor(ctx.config, ctx.tool, p) : undefined;
+      const fn = declared ? resolveNormalizer(declared) : undefined;
+      if (fn) {
+        out.push(`${p}=${fn(v)}`);
+      } else {
+        // Nobody declared one. Tier 1 takes over for this argument: the
+        // result shape REPLACES the lexical skeleton rather than joining it.
+        // Appending both was measured and it is strictly worse, 12.1% against
+        // 38.2% of suppressible tokens, because two constraints ANDed split
+        // clusters that either alone would have kept together. The comment in
+        // normalizers.ts said fallback chain; the first implementation was a
+        // conjunction anyway.
+        if (ctx?.onUndeclaredComposed?.()) {
+          out.push(`${p}=<derived>`);
+        } else {
+          out.push(`${p}=${skeleton(v)}`);
+        }
+      }
     } else out.push(p);
   };
   walk(args, prefix);
   return out;
 }
 
-/** Language-aware normalization can be turned off to measure what it is worth.
- *  Set EMCP_FOOTPRINT=0 to fall back to the lexical skeleton everywhere. */
-const FOOTPRINTS = process.env["EMCP_FOOTPRINT"] !== "0";
+/**
+ * Tier 1 is OFF by default because it was measured and it loses.
+ *
+ * On the model-written SQL corpus: no normalizer at all promotes 3 routes and
+ * saves 12.1% of suppressible tokens, the derived result shape promotes 2 and
+ * saves 8.5%, and a declared `sql` normalizer promotes 6 and saves 40.4%.
+ *
+ * It looked good in isolation, where clustering queries by result shape beat
+ * clustering them by raw string, 5 goals of 8 against 3, and never once merged
+ * two different goals. That did not survive integration. A shape key spans a
+ * whole episode, so substituting a coarse result shape for a specific argument
+ * merges episodes across goals, and the clusters that come out have arguments
+ * too varied to template.
+ *
+ * Kept, off, behind EMCP_DERIVED=1, because the negative result is worth being
+ * able to reproduce and a different corpus may not share it.
+ */
+const DERIVED = process.env["EMCP_DERIVED"] === "1";
 
-export function shapeOf(calls: RecordedCall[]): Shape {
-  const parts = calls.map((c) => `${c.tool}(${argSignature(c.args).join(",")})`);
+export function shapeOf(calls: RecordedCall[], config?: Config): Shape {
+  const parts = calls.map((c) => {
+    let undeclared = false;
+    const args = argSignature(c.args, "$", {
+      tool: c.tool,
+      ...(config ? { config } : {}),
+      onUndeclaredComposed: () => {
+        if (!DERIVED) return false;
+        undeclared = true;
+        return true;
+      },
+    });
+    // Tier 1. A composed argument nobody explained is the case where the
+    // arguments alone cannot say whether two calls mean the same thing, so
+    // what came back stands in. Only then: adding it everywhere would make
+    // every shape stricter for no gain, and stricter is not better here.
+    const derived = undeclared && DERIVED ? `->${resultShape(c.result)}` : "";
+    return `${c.tool}(${args.join(",")})${derived}`;
+  });
   return { key: parts.join(" > "), tools: calls.map((c) => c.tool) };
 }

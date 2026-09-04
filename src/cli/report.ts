@@ -1,7 +1,8 @@
 /**
  * Phase 0 report. Everything here is computed, nothing is asserted by hand.
  */
-import { detect, loadCalls, segment } from "../detect/index.js";
+import { detect, loadCalls, optionsFor, segment } from "../detect/index.js";
+import { loadConfig } from "../config/load.js";
 import { select } from "../detect/select.js";
 import { normalize } from "../detect/normalize.js";
 import type { Candidate } from "../types.js";
@@ -9,9 +10,10 @@ import type { Candidate } from "../types.js";
 const CORPUS = process.env["EMCP_CORPUS"] ?? "corpus/traces.jsonl";
 const n = (x: number): string => x.toLocaleString("en-US");
 
+const config = loadConfig();
 const calls = loadCalls(CORPUS);
 const episodes = segment(calls);
-const candidates = detect(episodes);
+const candidates = detect(episodes, optionsFor(config));
 
 const promotable = candidates.filter((c) => c.plan);
 const blocked = candidates.filter((c) => !c.plan);
