@@ -72,7 +72,23 @@ That buys three things. A route cannot do anything the upstream server could not
 
 The alternative, having a model write each route as a function, means arbitrary generated code executing inside the server author's process, and no reproducible test. It is also [Large Language Models as Tool Makers](https://arxiv.org/abs/2305.17126), published in 2023.
 
-## Run it
+## Point it at your own server
+
+Three commands, nothing installed into your server, nothing about it changed.
+
+```bash
+npx evolving-mcp init  -- <how you start your server>   # read tools/list, write a config
+npx evolving-mcp trace -- <how you start your server>   # forward everything, record it
+npx evolving-mcp report                                 # what recurs, and what it would save
+```
+
+`init` classifies any tool that declares MCP's `readOnlyHint`. On the reference filesystem server that is all fourteen, so there is nothing left to do. Anything unannotated is marked unclassified and treated as mutating until you say otherwise, because a route drops calls nothing reads from and dropping one with a side effect is silent and unrecoverable. We do not guess from tool names.
+
+`trace` is a proxy. It forwards both directions byte for byte, and there is a test asserting every response through it is identical to talking to the server directly, including errors, notifications, and payloads far larger than one chunk.
+
+Full walkthrough, the trace format, and how normalizers work: [docs/adopting.md](docs/adopting.md).
+
+## Run the research corpora
 
 ```bash
 npm install
@@ -110,6 +126,7 @@ Two more came from held-out replay rather than from the test suite, which is the
 - [Phase 2](docs/findings-phase-2.md) fixed the denominator, normalized SQL aliases, and tested a discrete-argument server.
 - [Phase 3](docs/findings-phase-3.md) replaced lexical matching with a semantic footprint, scored against ground truth.
 - [Phase 4](docs/findings-phase-4.md) stopped routes performing exploration they no longer need.
+- [Adopting it](docs/adopting.md) on a server of your own, and [the design behind that](docs/design-adoption.md).
 - [Phase 6](docs/findings-phase-6.md) tripled the corpus and watched the headline agreement number get worse.
 - [Phase 5](docs/findings-phase-5.md) built the corpus that measures the merge, on two real exploration paths.
 - [The original scope](docs/phase-0.md), including the falsifiers, written before any data existed.
