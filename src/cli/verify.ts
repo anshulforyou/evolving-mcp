@@ -18,7 +18,8 @@ import { shapeOf } from "../detect/canon.js";
 import { normalize } from "../detect/normalize.js";
 import { alignSteps, recoverParams, runRoute } from "../detect/interpret.js";
 import { StdioMcpClient } from "../mcp/client.js";
-import type { Episode, RoutePlan } from "../types.js";
+import { fromPortable } from "../corpus/portable.js";
+import type { Episode, Json, RoutePlan } from "../types.js";
 
 const DB = process.env["EMCP_DB"] ?? "corpus/store.db";
 const CORPUS = process.env["EMCP_CORPUS"] ?? "corpus/traces.jsonl";
@@ -65,6 +66,13 @@ async function main(): Promise<void> {
   const client = new StdioMcpClient(SERVER[0], SERVER[1]);
   await client.initialize();
 
+  // The corpus stores machine-independent paths, so expand them at the moment
+  // a call actually goes out. The route stays portable, the server sees a real
+  // path.
+  const sink = {
+    callTool: (name: string, args: Json): Promise<Json> => client.callTool(name, fromPortable(args)),
+  };
+
   let matched = 0, correct = 0, wrong = 0, unrecoverable = 0, threw = 0;
   let tokensSaved = 0;
   const failures: string[] = [];
@@ -89,7 +97,7 @@ async function main(): Promise<void> {
     if (!params) { unrecoverable++; failures.push(`${ep.goalId}: params not recoverable`); continue; }
 
     try {
-      const { result } = await runRoute(hit.plan, params, client);
+      const { result } = await runRoute(hit.plan, fromPortable(params), sink);
       const got = normalize(result).raw;
       const want = normalize(window[window.length - 1]!.result).raw;
       if (eq(got, want)) {

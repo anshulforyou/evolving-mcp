@@ -1,9 +1,29 @@
 {
   "name": "evolving-mcp",
-  "version": "0.0.0",
-  "private": true,
-  "type": "module",
+  "version": "0.1.0",
   "description": "An MCP server that writes its own tools from how it gets used",
+  "license": "MIT",
+  "author": "Anshul Yadav <anshulky@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anshulforyou/evolving-mcp.git"
+  },
+  "homepage": "https://github.com/anshulforyou/evolving-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/anshulforyou/evolving-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "llm",
+    "agents",
+    "tools",
+    "token-efficiency"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "seed": "tsx src/corpus/seed.ts",
     "record": "tsx src/corpus/record.ts",

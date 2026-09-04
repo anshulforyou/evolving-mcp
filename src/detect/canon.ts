@@ -45,6 +45,11 @@ export function argPaths(args: Json, prefix = "$"): string[] {
   return out;
 }
 
+/** Was this string assembled out of parts, or is it a single opaque value. */
+export function isComposed(s: string): boolean {
+  return /[/\\\s(),=]/.test(s);
+}
+
 /** Masks leaf literals out of a composed string, keeping its structure.
  *  Language-aware normalization runs first, so that two strings which differ
  *  only in what they named things reach the same skeleton. */
@@ -75,14 +80,23 @@ export function argSignature(args: Json, prefix = "$"): string[] {
       for (const k of keys) walk((v as { [k: string]: Json })[k]!, `${p}.${k}`);
       return;
     }
-    // Only strings long enough to have internal structure contribute a
-    // signature. A short scalar is a value, not a shape.
+    // A string contributes a signature when it is COMPOSED, meaning it was
+    // assembled out of parts: a path, a query, anything with separators in it.
+    // An atomic scalar like a table name is a value, and deciding whether it
+    // is constant, parameter or derived is the next stage's job.
+    //
+    // This used to be a length test, `v.length > 24`, and that turned out to
+    // be accidentally load-bearing. Absolute paths cleared the bar and were
+    // quietly carrying each goal's identity in the shape key. Shortening them
+    // to a portable form dropped them below it and coverage fell from 97% to
+    // 57%, with nothing else changed. Length was never the property that
+    // mattered.
     //
     // A language-aware footprint is preferred where one applies. It keeps what
     // determines the answer (tables, grouping, filters, aggregates) and drops
     // what a model varies freely between askings. The lexical skeleton is the
     // fallback for composed strings nothing understands yet.
-    if (typeof v === "string" && v.length > 24) {
+    if (typeof v === "string" && isComposed(v)) {
       const fp = FOOTPRINTS ? footprintKey(v, "loose") : null;
       out.push(`${p}=${fp ?? skeleton(v)}`);
     } else out.push(p);

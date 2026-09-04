@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { shapeOf, skeleton } from "../src/detect/canon.js";
+import { isComposed, shapeOf, skeleton } from "../src/detect/canon.js";
 import type { Json, RecordedCall } from "../src/types.js";
 
 const call = (tool: string, args: Json): RecordedCall => ({
@@ -47,4 +47,14 @@ test("short scalars stay values, not shape", () => {
   const a = shapeOf([call("describe_table", { table_name: "customers" })]);
   const b = shapeOf([call("describe_table", { table_name: "invoices" })]);
   assert.equal(a.key, b.key, "a table name is a value the next stage classifies");
+});
+
+test("composedness, not length, decides whether a string is part of the shape", () => {
+  // This was a length test once. Absolute paths cleared the bar and were
+  // silently carrying each goal's identity; portable paths did not, and
+  // coverage fell from 97% to 57% with nothing else changed.
+  assert.equal(isComposed("customers"), false, "an atomic value is not shape");
+  assert.equal(isComposed("{TREE}/src/db/pool.js"), true, "a path is composed");
+  assert.equal(isComposed("SELECT a FROM t"), true, "a query is composed");
+  assert.equal(isComposed("a".repeat(200)), false, "length alone means nothing");
 });

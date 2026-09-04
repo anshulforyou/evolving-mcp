@@ -19,6 +19,7 @@ import { looksLikeError, normalize, type NormalizedResult } from "../detect/norm
 import { measure } from "../metrics/tokens.js";
 import { askToPickPath, cacheStats, flushCache } from "./llm.js";
 import { CALLERS } from "./tasks.js";
+import { fromPortable, toPortable } from "./portable.js";
 import type { Json, LabelledCall } from "../types.js";
 
 const ROOT = resolve(process.env["EMCP_TREE"] ?? "corpus/tree");
@@ -141,7 +142,10 @@ async function main(): Promise<void> {
               : false;
           const isError = looksLikeError(result, flagged);
           staged.push({
-            traceId, seq: seq++, tsMs: Date.now(), caller, tool, args, result, isError,
+            // Written portable: no machine's home directory belongs in a
+            // corpus other people are expected to reproduce.
+            traceId, seq: seq++, tsMs: Date.now(), caller,
+            tool, args: toPortable(args), result: toPortable(result), isError,
             latencyMs: Math.round(latencyMs * 1000) / 1000,
             resultBytes: bytes, resultTokens: tokens,
             goalId: goal.id, variant: `${styleName}|${question.slice(0, 40)}`,
@@ -165,10 +169,12 @@ async function main(): Promise<void> {
 
           const picked = (
             await askToPickPath(
-              `Files available:\n${listing.slice(0, 4000)}\n\nRequest: ${question}\n\nReply with the single absolute path that answers it.`,
+              // The prompt is normalized too, so the response cache is keyed on
+              // something identical across machines and a clone spends nothing.
+              toPortable(`Files available:\n${listing.slice(0, 4000)}\n\nRequest: ${question}\n\nReply with the single absolute path that answers it.`),
             )
           ).trim();
-          const path = picked.startsWith("/") ? picked : resolve(ROOT, picked);
+          const path = picked.startsWith("{") ? fromPortable(picked) : picked.startsWith("/") ? picked : resolve(ROOT, picked);
           if (mode === "tree") await emit("get_file_info", { path });
           await emit("read_text_file", { path });
 

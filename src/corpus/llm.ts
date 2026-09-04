@@ -44,6 +44,9 @@ let cache: Cache = existsSync(CACHE) ? (JSON.parse(readFileSync(CACHE, "utf8")) 
 let writes = 0;
 let hits = 0;
 let spendCalls = 0;
+/** Keys this run actually asked for, so entries no recording needs any more
+ *  can be dropped instead of sitting in the repo forever. */
+const used = new Set<string>();
 
 const key = (system: string, prompt: string): string =>
   createHash("sha256").update(`${MODEL}\n${system}\n${prompt}`).digest("hex").slice(0, 32);
@@ -52,10 +55,15 @@ export function cacheStats(): { hits: number; calls: number; entries: number } {
   return { hits, calls: spendCalls, entries: Object.keys(cache).length };
 }
 
-export function flushCache(): void {
-  if (!writes) return;
+export function flushCache(opts: { prune?: boolean } = {}): void {
+  const kept = opts.prune
+    ? Object.fromEntries(Object.entries(cache).filter(([k]) => used.has(k)))
+    : cache;
+  const dropped = Object.keys(cache).length - Object.keys(kept).length;
+  if (!writes && !dropped) return;
   mkdirSync("corpus", { recursive: true });
-  writeFileSync(CACHE, JSON.stringify(cache, Object.keys(cache).sort(), 2) + "\n");
+  writeFileSync(CACHE, JSON.stringify(kept, Object.keys(kept).sort(), 2) + "\n");
+  if (dropped) console.log(`  pruned ${dropped} unused cache entries`);
 }
 
 const SQL_SYSTEM =
@@ -69,6 +77,7 @@ export const askToPickPath = (prompt: string): Promise<string> => ask(PICK_SYSTE
 
 async function ask(SYSTEM: string, prompt: string): Promise<string> {
   const k = key(SYSTEM, prompt);
+  used.add(k);
   const cached = cache[k];
   if (cached !== undefined) {
     hits++;
