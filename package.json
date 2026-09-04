@@ -38,7 +38,9 @@
     "compare": "tsx src/cli/compare.ts",
     "footprint": "tsx src/cli/footprint.ts",
     "init": "tsx src/cli/main.ts init",
-    "trace": "tsx src/cli/main.ts trace"
+    "trace": "tsx src/cli/main.ts trace",
+    "promote": "tsx src/cli/main.ts promote",
+    "serve": "tsx src/cli/main.ts serve"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",

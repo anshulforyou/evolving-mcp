@@ -196,3 +196,104 @@ test("a client-declared traceparent decides the episode", async () => {
   assert.deepEqual(rows.filter((r) => r.traceId.startsWith("a")).map((r) => r.seq), [0, 1]);
   assert.equal(rows.find((r) => r.traceId.startsWith("b"))!.seq, 0, "seq restarts in a new episode");
 });
+
+/* ------------------------------------------------------------------ */
+/* serving routes                                                      */
+/* ------------------------------------------------------------------ */
+
+import { writeFileSync } from "node:fs";
+
+/** A route over two of the fake server's tools, returning the second. */
+const SERVED = {
+  name: "normal_then_newlines.abc123",
+  description: "two upstream calls as one",
+  inputSchema: { type: "object", additionalProperties: false },
+  steps: [
+    { call: "normal", args: {} },
+    { call: "newlines", args: {} },
+  ],
+  returns: 1,
+  sourceSteps: [0, 1],
+};
+
+function serveSession(routes: unknown[], status: "active" | "proposed"): { dir: string; session: Session } {
+  const dir = mkdtempSync(join(tmpdir(), "emcp-serve-"));
+  writeFileSync(
+    join(dir, "routes.json"),
+    JSON.stringify({ version: 1, routes: routes.map((plan) => ({ plan, status, evidence: {} })) }),
+  );
+  const session = open(process.execPath, [
+    TSX, CLI, "serve", "--store", join(dir, "routes.json"), "--out", join(dir, "t.jsonl"),
+    "--", process.execPath, FAKE,
+  ]);
+  return { dir, session };
+}
+
+test("an active route appears in tools/list alongside the real tools", async () => {
+  const { session } = serveSession([SERVED], "active");
+  session.send({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} });
+  await waitFor(() => session.lines.length >= 1);
+  await session.done();
+
+  const result = JSON.parse(session.lines[0]!) as { result: { tools: Array<{ name: string }> } };
+  const names = result.result.tools.map((t) => t.name);
+  assert.equal((result.result as unknown as { ttlMs: number }).ttlMs, 300000, "the rest of the result is preserved");
+  assert.deepEqual(names.slice(0, 3), ["normal", "newlines", "boom"], "the upstream tools are untouched and in order");
+  assert.ok(names.includes(SERVED.name), "and the route was appended");
+});
+
+test("a proposed route is not served, which is what propose mode means", async () => {
+  const { session } = serveSession([SERVED], "proposed");
+  session.send({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} });
+  await waitFor(() => session.lines.length >= 1);
+  await session.done();
+  const result = JSON.parse(session.lines[0]!) as { result: { tools: Array<{ name: string }> } };
+  assert.ok(!result.result.tools.some((t) => t.name === SERVED.name));
+});
+
+test("calling a route runs its upstream calls and returns the last result", async () => {
+  const { session } = serveSession([SERVED], "active");
+  session.send({ jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: SERVED.name, arguments: {} } });
+  await waitFor(() => session.lines.length >= 1);
+  await settle(session);
+  await session.done();
+
+  assert.equal(session.lines.length, 1, "the route's own upstream calls never reach the client");
+  const msg = JSON.parse(session.lines[0]!) as { id: number; result: { content: Array<{ text: string }> } };
+  assert.equal(msg.id, 7, "answered under the client's own request id");
+  assert.equal(msg.result.content[0]!.text, "a\nb\nc", "the last step's result came back");
+});
+
+test("a failing route reports a tool error rather than breaking the session", async () => {
+  const broken = { ...SERVED, name: "broken.abc123", steps: [{ call: "boom", args: {} }], returns: 0, sourceSteps: [0] };
+  const { session } = serveSession([broken], "active");
+  session.send({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: broken.name, arguments: {} } });
+  await waitFor(() => session.lines.length >= 1);
+  await session.done();
+  const msg = JSON.parse(session.lines[0]!) as { id: number; result: { isError: boolean; content: Array<{ text: string }> } };
+  assert.equal(msg.id, 3);
+  assert.equal(msg.result.isError, true, "a tool execution error the model can read and recover from");
+  assert.match(msg.result.content[0]!.text, /broken\.abc123 failed/);
+});
+
+test("everything that is not a route is still forwarded byte for byte while serving", async () => {
+  // The runtime rewrites exactly two things: a tools/list result, and a call
+  // to a promoted route. Nothing else may change.
+  const direct = open(process.execPath, [FAKE]);
+  const script = (s: Session) => {
+    s.send(call(1, "normal"));
+    s.send(call(2, "newlines"));
+    s.send(call(3, "boom"));
+  };
+  script(direct);
+  await settle(direct);
+  await direct.done();
+
+  const { session } = serveSession([SERVED], "active");
+  script(session);
+  await waitFor(() => session.lines.length >= direct.lines.length);
+  await settle(session);
+  await session.done();
+
+  assert.deepEqual(session.lines, direct.lines);
+});

@@ -22,6 +22,7 @@
  * caller has to make the discovery call to learn it, and the tokens the route
  * was supposed to save arrive anyway.
  */
+import { isSensitive, type Config } from "../config/schema.js";
 import { leaves, normalize, type NormalizedResult } from "./normalize.js";
 import { argPaths } from "./canon.js";
 import { readPath } from "./normalize.js";
@@ -139,13 +140,27 @@ export function resetParamNames(): void {
 }
 
 /** Classifies one argument path of one step across the whole cluster. */
-function analyzeArg(views: MemberView[], step: number, path: string): ArgAnalysis {
+function analyzeArg(views: MemberView[], step: number, path: string, sensitive: boolean): ArgAnalysis {
   const raw = views.map((v) => readPath(v.args[step] ?? null, path));
   if (raw.some((r) => r === undefined)) {
     return { step, argPath: path, role: "unstable", note: "argument absent in some members" };
   }
   const values = raw as Json[];
   const strings = values.map((v) => (typeof v === "string" ? v : JSON.stringify(v)));
+
+  // A value the author marked sensitive is always supplied by the caller, even
+  // when every member of the cluster used the same one. Folding it would mean
+  // later callers running a route that carries the identity of whoever it was
+  // mined from.
+  if (sensitive) {
+    return {
+      step,
+      argPath: path,
+      role: "param",
+      binding: { kind: "param", name: freshParam(path.replace(/^\$\.?/, "")) },
+      note: "marked sensitive, so it is never folded into the route",
+    };
+  }
 
   // 1. Identical everywhere. Bake it in.
   if (strings.every((s) => s === strings[0])) {
@@ -253,15 +268,47 @@ function mergeLiterals(parts: Array<string | Binding>): Array<string | Binding> 
   return out;
 }
 
-export function analyze(cluster: Cluster): ArgAnalysis[] {
+export function analyze(cluster: Cluster, config?: Config): ArgAnalysis[] {
   const views = viewOf(cluster);
   const out: ArgAnalysis[] = [];
   const steps = cluster.shape.tools.length;
+  const sensitiveValues: string[] = [];
+
   for (let step = 0; step < steps; step++) {
+    const tool = cluster.shape.tools[step]!;
     for (const path of argPaths(views[0]!.args[step] ?? null)) {
       if (path === "$") continue; // no arguments on this call
-      out.push(analyzeArg(views, step, path));
+      const sensitive = isSensitive(config, tool, path);
+      if (sensitive) {
+        for (const v of views) {
+          const raw = readPath(v.args[step] ?? null, path);
+          if (raw !== undefined && raw !== null && typeof raw !== "object") sensitiveValues.push(String(raw));
+        }
+      }
+      out.push(analyzeArg(views, step, path, sensitive));
     }
   }
+
+  // A sensitive value can also reach a route by hiding inside somebody else's
+  // composed string, where marking the field it came from would not have saved
+  // it. `SELECT ... WHERE tenant = 'acme'` folds "acme" into a SQL literal.
+  // A cluster that only holds together because of that is refused, rather than
+  // promoted with the value in it.
+  if (sensitiveValues.length) {
+    for (const a of out) {
+      if (!a.binding || a.binding.kind !== "template") continue;
+      for (const part of a.binding.parts) {
+        if (typeof part !== "string") continue;
+        const hit = sensitiveValues.find((v) => v.length > 1 && part.includes(v));
+        if (hit) {
+          a.role = "unstable";
+          a.note = `a value marked sensitive was folded into this string literal, so the route is refused`;
+          delete a.binding;
+          break;
+        }
+      }
+    }
+  }
+
   return out;
 }

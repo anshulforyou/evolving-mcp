@@ -13,6 +13,20 @@
  * exactly as it arrived, and parsing happens on a copy. Re-serializing a
  * parsed object would be enough to change key order or number formatting, and
  * a proxy that quietly rewrites the protocol is worse than no proxy.
+ *
+ * When routes are being served there are exactly two exceptions, and they are
+ * the entire runtime:
+ *
+ *   1. A `tools/list` RESULT is rewritten to append the promoted routes. This
+ *      is the one message whose bytes change, and it changes only by gaining
+ *      entries in its `tools` array.
+ *   2. A `tools/call` naming a promoted route is answered here instead of
+ *      being forwarded. The route's own upstream calls go out on a separate
+ *      id space so they can never collide with the client's, and their
+ *      replies are consumed here rather than reaching the client.
+ *
+ * Everything else, including every call to a tool the upstream server really
+ * has, is still forwarded byte for byte.
  */
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createWriteStream, mkdirSync, type WriteStream } from "node:fs";
@@ -20,12 +34,20 @@ import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { rawText } from "../detect/normalize.js";
 import { TRACE_VERSION, type Boundary, type TraceRow } from "./format.js";
-import type { Json } from "../types.js";
+import { runRoute } from "../detect/interpret.js";
+import type { Json, RoutePlan } from "../types.js";
+
+/** Our own calls use string ids with this prefix. Client ids are whatever the
+ *  client chose, so a distinct shape is what guarantees no collision. */
+const INTERNAL_PREFIX = "emcp-";
 
 export interface ProxyOptions {
   command: string;
   args: string[];
   out: string;
+  /** Routes to serve. Empty or absent means pure recording, and then the proxy
+   *  is byte-transparent in both directions. */
+  routes?: RoutePlan[];
   /** Silence after which the next call begins a new episode, when the client
    *  gives us no trace context of its own. */
   idleGapMs: number;
@@ -86,9 +108,16 @@ export class RecordingProxy {
   private lastCallAt = 0;
   private episodeBoundary: Boundary = "process";
   private everSawTraceparent = false;
-  private counts = { calls: 0, episodes: 1 };
+  private counts = { calls: 0, episodes: 1, routeCalls: 0 };
+  private routes = new Map<string, RoutePlan>();
+  /** Client request ids whose response must have routes appended. */
+  private listRequests = new Set<string | number>();
+  /** Our own in-flight upstream calls, keyed by internal id. */
+  private internal = new Map<string, { resolve: (v: Json) => void; reject: (e: Error) => void }>();
+  private internalSeq = 0;
 
   constructor(private readonly opts: ProxyOptions) {
+    for (const r of opts.routes ?? []) this.routes.set(r.name, r);
     mkdirSync(dirname(opts.out) || ".", { recursive: true });
     this.sink = createWriteStream(opts.out, { flags: "a" });
     this.upstream = spawn(opts.command, opts.args, { stdio: ["pipe", "pipe", "pipe"] });
@@ -96,6 +125,9 @@ export class RecordingProxy {
     // Client to server. Forward first, record second: a slow write to our own
     // log must never sit in front of somebody's tool call.
     const fromClient = lineSplitter((line) => {
+      // A call to a promoted route is answered here and never forwarded, so
+      // the decision has to happen before the write.
+      if (this.tryServeRoute(line)) return;
       this.upstream.stdin.write(line + "\n");
       this.onClientLine(line);
     });
@@ -104,7 +136,9 @@ export class RecordingProxy {
     process.stdin.on("end", () => this.upstream.stdin.end());
 
     const fromServer = lineSplitter((line) => {
-      process.stdout.write(line + "\n");
+      // Replies to our own calls belong to us, not to the client.
+      if (line.includes(`"${INTERNAL_PREFIX}`) && this.tryConsumeInternal(line)) return;
+      process.stdout.write(this.withRoutes(line) + "\n");
       this.onServerLine(line);
     });
     this.upstream.stdout.setEncoding("utf8");
@@ -126,9 +160,105 @@ export class RecordingProxy {
     });
   }
 
+  /** Appends promoted routes to a tools/list result. The only rewritten bytes. */
+  private withRoutes(line: string): string {
+    if (!this.routes.size) return line;
+    const msg = asObject(line);
+    if (!msg) return line;
+    const id = msg["id"];
+    if ((typeof id !== "number" && typeof id !== "string") || !this.listRequests.has(id)) return line;
+    this.listRequests.delete(id);
+    const result = msg["result"];
+    if (typeof result !== "object" || result === null || Array.isArray(result)) return line;
+    const r = result as Record<string, Json>;
+    if (!Array.isArray(r["tools"])) return line;
+    r["tools"] = [
+      ...(r["tools"] as Json[]),
+      ...[...this.routes.values()].map((p) => ({
+        name: p.name,
+        description: p.description,
+        inputSchema: p.inputSchema as Json,
+      })),
+    ] as Json;
+    return JSON.stringify(msg);
+  }
+
+  /** Answers a call to a promoted route. Returns true when it handled the line. */
+  private tryServeRoute(line: string): boolean {
+    if (!this.routes.size) return false;
+    const msg = asObject(line);
+    if (!msg || msg["method"] !== "tools/call") return false;
+    const id = msg["id"];
+    if (typeof id !== "number" && typeof id !== "string") return false;
+    const params = msg["params"];
+    if (typeof params !== "object" || params === null || Array.isArray(params)) return false;
+    const p = params as Record<string, Json>;
+    const plan = typeof p["name"] === "string" ? this.routes.get(p["name"]) : undefined;
+    if (!plan) return false;
+
+    const args = (p["arguments"] ?? {}) as Record<string, Json>;
+    const meta = p["_meta"];
+    this.counts.routeCalls++;
+
+    void runRoute(plan, args, {
+      // Every upstream call the route makes carries the CALLER's own request
+      // metadata, so their credentials and not the ones this route was mined
+      // from. Authorization stays entirely the upstream server's decision.
+      callTool: (name, callArgs) => this.callUpstream(name, callArgs, meta),
+    })
+      .then(({ result }) => {
+        process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, result }) + "\n");
+      })
+      .catch((e: Error) => {
+        // A tool execution error, not a protocol error: the model can read it
+        // and fall back to the underlying tools.
+        process.stdout.write(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id,
+            result: { content: [{ type: "text", text: `route ${plan.name} failed: ${e.message}` }], isError: true },
+          }) + "\n",
+        );
+      });
+    return true;
+  }
+
+  private callUpstream(name: string, args: Json, meta: Json | undefined): Promise<Json> {
+    const id = `${INTERNAL_PREFIX}${++this.internalSeq}`;
+    const params: Record<string, Json> = { name, arguments: args };
+    if (meta !== undefined) params["_meta"] = meta;
+    const done = new Promise<Json>((resolve, reject) => {
+      this.internal.set(id, { resolve, reject });
+      setTimeout(() => {
+        if (this.internal.delete(id)) reject(new Error(`upstream call ${name} timed out`));
+      }, 30_000);
+    });
+    this.upstream.stdin.write(JSON.stringify({ jsonrpc: "2.0", id, method: "tools/call", params }) + "\n");
+    return done;
+  }
+
+  private tryConsumeInternal(line: string): boolean {
+    const msg = asObject(line);
+    if (!msg) return false;
+    const id = msg["id"];
+    if (typeof id !== "string" || !id.startsWith(INTERNAL_PREFIX)) return false;
+    const waiter = this.internal.get(id);
+    if (!waiter) return false;
+    this.internal.delete(id);
+    if (msg["error"]) waiter.reject(new Error(JSON.stringify(msg["error"])));
+    else waiter.resolve((msg["result"] ?? null) as Json);
+    return true;
+  }
+
   private onClientLine(line: string): void {
     const msg = asObject(line);
-    if (!msg || msg["method"] !== "tools/call") return;
+    if (!msg) return;
+    if (msg["method"] === "tools/list") {
+      const id = msg["id"];
+      if (typeof id === "number" || typeof id === "string") this.listRequests.add(id);
+      return;
+    }
+    if (msg["method"] !== "tools/call") return;
     const id = msg["id"];
     if (typeof id !== "number" && typeof id !== "string") return;
     const params = msg["params"];
@@ -224,7 +354,7 @@ export class RecordingProxy {
     setImmediate(() => this.sink.write(JSON.stringify(row) + "\n"));
   }
 
-  stats(): { calls: number; episodes: number } {
+  stats(): { calls: number; episodes: number; routeCalls: number } {
     return { ...this.counts };
   }
 }

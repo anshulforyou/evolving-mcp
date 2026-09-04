@@ -18,6 +18,22 @@ const write = (o) => process.stdout.write(JSON.stringify(o) + "\n");
 
 function handle(msg) {
   if (msg.id === undefined) return; // notification, no reply
+  if (msg.method === "tools/list") {
+    write({
+      jsonrpc: "2.0",
+      id: msg.id,
+      result: {
+        tools: [
+          { name: "normal", description: "does a thing", inputSchema: { type: "object" } },
+          { name: "newlines", description: "text with newlines in it", inputSchema: { type: "object" } },
+          { name: "boom", description: "fails", inputSchema: { type: "object" } },
+        ],
+        ttlMs: 300000,
+        cacheScope: "public",
+      },
+    });
+    return;
+  }
   const name = msg.params?.name;
   if (name === "slow") {
     // Replies after the next request, so responses arrive out of order.

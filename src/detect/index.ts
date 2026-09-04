@@ -30,7 +30,7 @@ export function detect(episodes: Episode[], opts: MineOptions = DEFAULTS): Candi
   const clusters = mine(episodes, opts);
   const raw: Candidate[] = [];
   for (const cluster of clusters) {
-    const analyses = analyze(cluster);
+    const analyses = analyze(cluster, opts.config);
     const { plan, blockedBy } = synthesize(cluster, analyses, opts.config);
     raw.push({
       cluster,
@@ -94,7 +94,10 @@ function mergeIdenticalPlans(candidates: Candidate[], opts: MineOptions): Candid
       members,
     };
     const analyses = group.flatMap((c) => c.analyses);
-    merged.push({ cluster, analyses, plan: head.plan!, score: score(cluster, analyses, head.plan!) });
+    // opts.config matters here as much as on the first pass. Leaving it off
+    // made every MERGED route report as mutating, so the strongest routes in
+    // the corpus were the exact ones promotion refused.
+    merged.push({ cluster, analyses, plan: head.plan!, score: score(cluster, analyses, head.plan!, opts.config) });
   }
 
   return [...merged, ...passthrough].filter(

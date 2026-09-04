@@ -3,9 +3,11 @@
 Three commands. Nothing is installed into your server and nothing about it changes. What you get back is a measurement: which call sequences your traffic repeats, what collapsing them would save, and which of them are unsafe to touch.
 
 ```bash
-npx evolving-mcp init  -- <how you start your server>
-npx evolving-mcp trace -- <how you start your server>
-npx evolving-mcp report
+npx evolving-mcp init    -- <how you start your server>   # write a config
+npx evolving-mcp trace   -- <how you start your server>   # record real traffic
+npx evolving-mcp report                                   # what it would save
+npx evolving-mcp promote                                  # write routes to a store you review
+npx evolving-mcp serve   -- <how you start your server>   # offer the ones you activated
 ```
 
 ## 1. init
@@ -62,6 +64,46 @@ npx evolving-mcp report --trace my.trace.jsonl
 ```
 
 Tells you what recurred, what it would save, what is blocked and why, and what is still unclassified.
+
+## 4. promote
+
+```bash
+npx evolving-mcp promote --trace my.trace.jsonl
+```
+
+Writes qualifying routes into `evolving-mcp.routes.json`, a file you read, diff and commit. Each entry carries the evidence that earned it: how many episodes backed it, the tokens it keeps out of context, what its schema costs, and how many upstream calls it skips.
+
+A route is refused if it contains a mutating or unclassified call, if it saves less than its own schema costs, or if the surface is already full and it is weaker than everything in it.
+
+**Nothing is served yet.** Entries are written as `"status": "proposed"`. Change one to `"active"` when you want it.
+
+**The surface is capped**, at `runtime.maxRoutes`. There is no eviction in this version, so a cap is what stops the schema cost every caller pays growing forever. A stronger candidate displaces the weakest incumbent, which is safe because a proposed route was never served.
+
+## 5. serve
+
+```bash
+npx evolving-mcp serve --store evolving-mcp.routes.json -- <your original command>
+```
+
+The same proxy, now also offering the routes you marked active. They appear in `tools/list` alongside your real tools and can be called like any other.
+
+Two rewritten messages and no others: a `tools/list` result gains entries, and a call naming a route is answered here. Everything else is still forwarded byte for byte, and there is a test asserting exactly that while routes are being served.
+
+A route's upstream calls carry the **calling** caller's request metadata, never the credentials of whoever it was mined from, so your server applies its own authorization exactly as it always did.
+
+**There is no eviction.** A route that starts failing keeps failing until you remove it from the store. That is why `propose` is the default and `live` is something you turn on deliberately.
+
+## Marking sensitive arguments
+
+An argument the author marks sensitive is never folded into a route, however stable it looks across traffic:
+
+```json
+{ "tools": { "fetch": { "mutability": "read-only", "sensitive": ["$.tenant_id"] } } }
+```
+
+A tenant id identical in every recorded call would otherwise become a constant, and every later caller would run a route carrying somebody else's identity. If such a value turns up folded inside another argument's string, the whole route is refused rather than promoted with it inside.
+
+These are named by you and never detected. Entropy checks and key-shaped-string heuristics work until they do not, and that failure is silent.
 
 ## Bringing your own traces
 

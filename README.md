@@ -80,6 +80,8 @@ Three commands, nothing installed into your server, nothing about it changed.
 npx evolving-mcp init  -- <how you start your server>   # read tools/list, write a config
 npx evolving-mcp trace -- <how you start your server>   # forward everything, record it
 npx evolving-mcp report                                 # what recurs, and what it would save
+npx evolving-mcp promote                                # write routes into a store you review
+npx evolving-mcp serve -- <how you start your server>   # offer the ones you activated
 ```
 
 `init` classifies any tool that declares MCP's `readOnlyHint`. On the reference filesystem server that is all fourteen, so there is nothing left to do. Anything unannotated is marked unclassified and treated as mutating until you say otherwise, because a route drops calls nothing reads from and dropping one with a side effect is silent and unrecoverable. We do not guess from tool names.
@@ -105,7 +107,9 @@ Recording talks to the official reference servers. The sqlite one is stale and c
 
 ## What this is not
 
-Not a running server. No middleware, no SDK integration, no live promotion, on purpose. All of that is downstream of knowing the saving is real, and most of what was learned here only appeared once real payloads were involved.
+Not autonomous. `promote` writes routes into a file you read, diff and commit, and nothing is served until you change a `status` to `active`. `live` mode exists and is off by default, because there is **no eviction yet**: a route that starts failing keeps failing until you remove it, which is fine when a human put it there and not fine when the system did.
+
+Not in your server. The runtime is a proxy you deploy in front of it. Your server is unchanged and never sees a request it did not already understand.
 
 Not a claim that independent callers converge on their own. The model picks targets and writes queries, which is the part that varies, but the exploration shapes were authored by hand.
 

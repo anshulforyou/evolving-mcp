@@ -22,6 +22,11 @@ export type Boundary = "traceparent" | "idle-gap" | "process";
 export interface TraceRow extends RecordedCall {
   version: number;
   boundary: Boundary;
+  /** Present only on this repo's own corpora, which record what the caller was
+   *  really trying to do so a cluster can be scored against intent. Never an
+   *  input to detection, and absent from real traffic. */
+  goalId?: string;
+  variant?: string;
 }
 
 export class TraceFormatError extends Error {}
@@ -75,6 +80,8 @@ export function parseRow(raw: unknown, where: string): TraceRow {
     resultBytes: measured.bytes,
     resultTokens: measured.tokens,
     boundary,
+    ...(typeof o["goalId"] === "string" ? { goalId: o["goalId"] } : {}),
+    ...(typeof o["variant"] === "string" ? { variant: o["variant"] } : {}),
   };
 }
 

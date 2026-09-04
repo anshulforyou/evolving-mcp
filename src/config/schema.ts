@@ -21,6 +21,18 @@ export type NormalizerName = "sql" | "path" | "opaque" | "none";
 export type Mutability = "read-only" | "mutating" | "unclassified";
 
 export interface ToolConfig {
+  /** Argument paths that must never be folded into a route.
+   *
+   *  A route is mined from real traffic, and real traffic carries
+   *  authorization. A tenant id or an account id that happens to be stable
+   *  across a cluster would otherwise become a constant, and every later
+   *  caller would run a route carrying somebody else's identity. Marked paths
+   *  are always parameters, and a cluster that only holds together because one
+   *  of them could be folded is rejected instead of promoted.
+   *
+   *  Named by the author, never detected. Entropy and key-shaped-string
+   *  heuristics work until they do not, and that failure is silent. */
+  sensitive?: string[];
   /** Whether calling this changes anything. `unclassified` is treated exactly
    *  as `mutating` everywhere it matters; it exists so a report can tell the
    *  author what still needs a decision. */
@@ -33,6 +45,21 @@ export interface ToolConfig {
 
 export interface Config {
   version: 1;
+  runtime?: {
+    /** `propose` writes a qualifying route to the store and stops, for the
+     *  author to review and commit. `live` serves it immediately.
+     *
+     *  There is no eviction yet, so a route that starts failing cannot be
+     *  withdrawn by the system. In `propose` mode that is fine: the route is in
+     *  a file somebody committed and removing it is a revert. In `live` mode it
+     *  would fail for every caller with no way out, which is why `live`
+     *  requires an explicit opt-in and warns. */
+    mode?: "propose" | "live";
+    /** The surface only grows without eviction, so it is capped. A stronger
+     *  candidate displaces the weakest incumbent. */
+    maxRoutes?: number;
+    store?: string;
+  };
   /** How the server is started, so `trace` and `init` need no arguments. */
   server?: { command: string; args: string[] };
   tools: Record<string, ToolConfig>;
@@ -70,6 +97,18 @@ export function parseConfig(raw: unknown, where: string): Config {
     if (m !== "read-only" && m !== "mutating" && m !== "unclassified") {
       fail(`tools.${name}.mutability must be "read-only", "mutating" or "unclassified", got ${JSON.stringify(m)}`);
     }
+    const sensitive: string[] = [];
+    const sens = t["sensitive"];
+    if (sens !== undefined) {
+      if (!Array.isArray(sens)) fail(`tools.${name}.sensitive must be an array of argument paths`);
+      for (const v of sens) {
+        if (typeof v !== "string" || !v.startsWith("$")) {
+          fail(`tools.${name}.sensitive entries must be argument paths like "$.tenant_id", got ${JSON.stringify(v)}`);
+        }
+        sensitive.push(v);
+      }
+    }
+
     const normalizers: Record<string, NormalizerName> = {};
     const n = t["normalizers"];
     if (n !== undefined) {
@@ -85,6 +124,7 @@ export function parseConfig(raw: unknown, where: string): Config {
     const src = t["source"];
     tools[name] = {
       mutability: m,
+      ...(sensitive.length ? { sensitive } : {}),
       ...(Object.keys(normalizers).length ? { normalizers } : {}),
       ...(src === "annotation" || src === "author" || src === "default" ? { source: src } : {}),
     };
@@ -98,6 +138,29 @@ export function parseConfig(raw: unknown, where: string): Config {
     if (typeof s["command"] !== "string") fail("`server.command` must be a string");
     if (!Array.isArray(s["args"]) || s["args"].some((a) => typeof a !== "string")) fail("`server.args` must be an array of strings");
     server = { command: s["command"], args: s["args"] as string[] };
+  }
+
+  const runtimeRaw = o["runtime"];
+  let runtime: Config["runtime"];
+  if (runtimeRaw !== undefined) {
+    if (typeof runtimeRaw !== "object" || runtimeRaw === null || Array.isArray(runtimeRaw)) fail("`runtime` must be an object");
+    const r = runtimeRaw as Record<string, Json>;
+    runtime = {};
+    const mode = r["mode"];
+    if (mode !== undefined) {
+      if (mode !== "propose" && mode !== "live") fail(`runtime.mode must be "propose" or "live", got ${JSON.stringify(mode)}`);
+      runtime.mode = mode;
+    }
+    const max = r["maxRoutes"];
+    if (max !== undefined) {
+      if (typeof max !== "number" || !Number.isInteger(max) || max <= 0) fail("runtime.maxRoutes must be a positive integer");
+      runtime.maxRoutes = max;
+    }
+    const store = r["store"];
+    if (store !== undefined) {
+      if (typeof store !== "string" || !store) fail("runtime.store must be a path");
+      runtime.store = store;
+    }
   }
 
   const miningRaw = o["mining"];
@@ -114,7 +177,13 @@ export function parseConfig(raw: unknown, where: string): Config {
     }
   }
 
-  return { version: 1, ...(server ? { server } : {}), tools, ...(mining ? { mining } : {}) };
+  return {
+    version: 1,
+    ...(server ? { server } : {}),
+    ...(runtime ? { runtime } : {}),
+    tools,
+    ...(mining ? { mining } : {}),
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -135,6 +204,13 @@ export function unclassifiedTools(config: Config): string[] {
     .map(([n]) => n)
     .sort();
 }
+
+/** Is this argument one the author said must never be folded into a route. */
+export function isSensitive(config: Config | undefined, tool: string, argPath: string): boolean {
+  return config?.tools[tool]?.sensitive?.includes(argPath) ?? false;
+}
+
+export const DEFAULT_RUNTIME = { mode: "propose" as const, maxRoutes: 32, store: "evolving-mcp.routes.json" };
 
 export function normalizerFor(config: Config | undefined, tool: string, argPath: string): NormalizerName | undefined {
   return config?.tools[tool]?.normalizers?.[argPath];
