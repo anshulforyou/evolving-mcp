@@ -1,5 +1,9 @@
 # Phase 5: closing the gap the merge was never measured on
 
+> **Superseded in part by [phase 6](findings-phase-6.md).** The cross-path agreement figure here, 4 goals of 5, was measured on five goals and did not survive tripling the corpus: it is **10 of 15**. Do not quote the 4-of-5 or the 97% derived from it. The held-out figures here are likewise from the smaller corpus; the current ones are 50 of 68 matched and 50 of 50 correct.
+>
+> The merge result this document exists to establish is unchanged and still holds.
+
 Run 2026-09-04. 35 model calls, roughly sixty cents.
 
 Phase 4 built a merge step so that one goal explored two different ways would become one route, and then had to admit it was only exercised by a unit test on synthetic episodes. No corpus contained two exploration paths that reach the same outcome. This builds one.

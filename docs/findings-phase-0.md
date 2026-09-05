@@ -1,6 +1,10 @@
 # Phase 0 findings
 
-> **Superseded in part by [phase 1](findings-phase-1.md).** The 47.7% headline here was an artifact of the SQL being hand-written, exactly as the limitations section warned. With a real model writing the queries it falls to 0.6%. Do not quote the 47.7% figure. The design findings below all still hold.
+> **Superseded in part.** The 47.7% headline here was an artifact of the SQL being hand-written, exactly as the limitations section warned. Do not quote it.
+>
+> [Phase 1](findings-phase-1.md) put a real model in the loop and watched it collapse. [Phase 2](findings-phase-2.md) then showed the denominator itself was wrong: measured against the tokens a route could ever suppress, the drop is 87.1% to 40.4% rather than 47.7% to 0.6%. **The current figures are in the [README](../README.md) and are the only ones worth quoting.**
+>
+> Every design finding below still holds, and they are the reason this document is kept.
 
 Run against the official `mcp-server-sqlite` reference server on 2026-09-03. Reproduce with `npm run seed && npm run record && npm run report && npm run verify && npm test`.
 

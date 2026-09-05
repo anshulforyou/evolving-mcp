@@ -58,7 +58,9 @@ Read the rows in order, because the middle one is the point.
 
 **Row two replaced me with a real model.** Asked the same question in six wordings, it wrote between two and six structurally different queries every time. Different aliases, `SELECT *` against explicit columns, `NOT IN` against `NOT EXISTS`. Most of row one turned out to be a measurement of my own consistency.
 
-**Row three is a server whose tools take a `path` instead of a free-form string.** Asked seven different ways, callers landed on the same file 97% of the time. Held out on 21 episodes the miner had never seen, 16 of 16 matches replayed to the caller's exact answer, and 89.9% of their result tokens never needed to enter a context.
+**Row three is a server whose tools take a `path` instead of a free-form string.** It covers 97% of episodes and keeps 98.5% of the suppressible tokens out of context. Held out on 68 episodes the miner had never seen, **50 of 68 matched a route and all 50 replayed to the caller's exact answer**, none came back different, and 59.3% of held-out result tokens never needed to enter a context.
+
+The 18 that matched nothing are the support threshold meeting a corpus with 15 goals in it, not a detector failure. And note the honest number below on cross-path agreement, which is the weakest figure here and went the wrong way when the corpus grew.
 
 So the claim is narrower and more useful than the one this started with:
 
@@ -66,7 +68,7 @@ So the claim is narrower and more useful than the one this started with:
 
 ## Routes are data, not generated code
 
-A route is a list of upstream calls with bindings, run by one interpreter of about 130 lines. No `eval`, no code generation, no model anywhere in the execution path.
+A route is a list of upstream calls with bindings, run by one interpreter of 128 lines. No `eval`, no code generation, no model anywhere in the execution path.
 
 That buys three things. A route cannot do anything the upstream server could not already do. The server's author can open it and read exactly what it will do. And it behaves identically every time, which is the only reason `npm test` can assert the exact set of routes the committed corpus produces, and the only reason to believe any number on this page.
 
@@ -98,7 +100,7 @@ npm run seed    && npm run record      # sqlite corpus
 npm run seed:fs && npm run record:fs   # filesystem corpus
 npm run compare                        # the table above
 npm run verify                         # replay routes against the live server
-npm test                               # 37 tests, including the exact route set
+npm test                               # 82 tests, including the exact route set
 ```
 
 Model responses are cached in `corpus/llm-cache.json` and committed, so none of that spends anything. `EMCP_OFFLINE=1` turns a cache miss into an error rather than a live call.
