@@ -60,11 +60,15 @@ Read the rows in order, because the middle one is the point.
 
 **Row three is a server whose tools take a `path` instead of a free-form string.** It covers 97% of episodes and keeps 98.5% of the suppressible tokens out of context. Held out on 68 episodes the miner had never seen, **50 of 68 matched a route and all 50 replayed to the caller's exact answer**, none came back different, and 59.3% of held-out result tokens never needed to enter a context.
 
-The 18 that matched nothing are the support threshold meeting a corpus with 15 goals in it, not a detector failure. And note the honest number below on cross-path agreement, which is the weakest figure here and went the wrong way when the corpus grew.
+The 18 that matched nothing are the support threshold meeting a corpus with 15 goals in it, not a detector failure.
+
+**Read that number with the qualifier it needs.** That split shares goals between training and test, so it measures whether a route survives a new phrasing of a question already seen. Hold out whole *goals* instead, so the intent is genuinely new, and coverage falls from 98% to **11%** — and that 11% is only four files that two different goals happened to land on. Against a truly new intent it is zero.
+
+Which is correct rather than disappointing. A route is a specific outcome and cannot cover one it has never seen. **This amortizes repetition, it does not anticipate.** So the value of a route surface is how repetitive your traffic is, multiplied by how expensive each repeat is, and neither is knowable from our corpus. That is the reason `report` exists: run it on your own traffic. [Phase 7](docs/findings-phase-7.md) has the experiment.
 
 So the claim is narrower and more useful than the one this started with:
 
-> **This works where a tool's arguments are structured. Where a tool takes one free-form string, deciding whether two calls are the same call is the entire problem.**
+> **This works where a tool's arguments are structured, and only for outcomes your callers reach repeatedly. Where a tool takes one free-form string, deciding whether two calls are the same call is the entire problem.**
 
 ## Routes are data, not generated code
 
@@ -99,6 +103,7 @@ npm install
 npm run seed    && npm run record      # sqlite corpus
 npm run seed:fs && npm run record:fs   # filesystem corpus
 npm run compare                        # the table above
+npm run holdout                        # coverage when the intent is new
 npm run verify                         # replay routes against the live server
 npm test                               # 82 tests, including the exact route set
 ```
@@ -133,6 +138,7 @@ Two more came from held-out replay rather than from the test suite, which is the
 - [Phase 3](docs/findings-phase-3.md) replaced lexical matching with a semantic footprint, scored against ground truth.
 - [Phase 4](docs/findings-phase-4.md) stopped routes performing exploration they no longer need.
 - [Adopting it](docs/adopting.md) on a server of your own, and [the design behind that](docs/design-adoption.md).
+- [Phase 7](docs/findings-phase-7.md) held out whole intents instead of episodes, and the headline number fell from 98% to 11%.
 - [Phase 6](docs/findings-phase-6.md) tripled the corpus and watched the headline agreement number get worse.
 - [Phase 5](docs/findings-phase-5.md) built the corpus that measures the merge, on two real exploration paths.
 - [The original scope](docs/phase-0.md), including the falsifiers, written before any data existed.

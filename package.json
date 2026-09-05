@@ -40,7 +40,8 @@
     "init": "tsx src/cli/main.ts init",
     "trace": "tsx src/cli/main.ts trace",
     "promote": "tsx src/cli/main.ts promote",
-    "serve": "tsx src/cli/main.ts serve"
+    "serve": "tsx src/cli/main.ts serve",
+    "holdout": "tsx src/cli/holdout.ts"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
